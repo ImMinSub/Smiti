@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 기본 마진 -->
+    <dimen name="screen_margin">40dp</dimen>
+    <dimen name="small_margin">10dp</dimen>
+    <dimen name="medium_margin">20dp</dimen>
+    <dimen name="large_margin">60dp</dimen>
+    
+    <!-- 로고 관련 -->
+    <dimen name="logo_margin_horizontal">60dp</dimen>
+    <dimen name="logo_margin_top">100dp</dimen>
+    
+    <!-- 입력 필드 -->
+    <dimen name="input_field_height">48dp</dimen>
+    <dimen name="input_padding">12dp</dimen>
+    <dimen name="input_padding_horizontal">12dp</dimen>
+    <dimen name="input_padding_vertical">8dp</dimen>
+    
+    <!-- 최소 터치 영역 (Material Design 가이드라인) -->
+    <dimen name="min_touch_target_size">48dp</dimen>
+</resources> 

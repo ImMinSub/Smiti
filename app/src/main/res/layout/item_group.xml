@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_group_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="그룹 이름"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#000000"/>
+
+        <TextView
+            android:id="@+id/tv_group_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="그룹 설명"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:maxLines="2"
+            android:ellipsize="end"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/tv_category"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="카테고리"
+                android:textSize="12sp"
+                android:textStyle="italic"
+                android:background="#E0E0E0"
+                android:padding="4dp"
+                android:layout_marginEnd="8dp"/>
+
+            <TextView
+                android:id="@+id/tv_member_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="참여자 0명"
+                android:textSize="12sp"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"/>
+
+            <TextView
+                android:id="@+id/tv_mbti_score"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="궁합:"
+                android:textSize="12sp"
+                android:layout_marginEnd="4dp"
+                android:textColor="#4285F4"/>
+                
+            <ProgressBar
+                android:id="@+id/progress_mbti_score"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:max="100"
+                android:progress="85"
+                android:progressTint="#4285F4" />
+                
+            <TextView
+                android:id="@+id/tv_mbti_score_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="85점"
+                android:textSize="12sp"
+                android:layout_marginStart="4dp"
+                android:textColor="#4285F4"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_join"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="참여하기"
+            android:textSize="14sp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"/>
+    </LinearLayout>
+</androidx.cardview.widget.CardView> 

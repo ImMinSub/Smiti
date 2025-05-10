@@ -1,0 +1,223 @@
+**1**
+```
+방식 : GET
+경로 : /robots.txt
+설명 : bot 접근 관련 설정 파일 조회
+curl -X 'GET' 'http://202.31.246.51:80/robots.txt'
+```
+
+**2**
+```
+방식 : POST
+경로 : /users
+설명 : 사용자 생성
+curl -X 'POST' 'http://202.31.246.51:80/users' -H 'Content-Type: application/json' -d '{ "email": "1@naver.com", "password": "123", "name": "123", "smbti": "EIFM" }'
+```
+
+**3**
+```
+방식 : POST
+경로 : /users/login
+설명 : 사용자 로그인
+curl -X 'POST' 'http://202.31.246.51:80/users/login' -H 'Content-Type: application/json' -d '{ "email": "snower@jj.ac.kr", "password": "qwer" }'
+```
+
+**4**
+```
+방식 : PUT
+경로 : /users/smbti
+설명 : 사용자 SMBTI 정보 업데이트
+curl -X 'PUT' 'http://202.31.246.51:80/users/smbti' -H 'Content-Type: application/json' -d '{ "email": "user2@example.com", "smbti": "ECFD" }'
+```
+
+**5**
+```
+방식 : GET
+경로 : /users/me
+설명 : 내 정보 조회(가져오기) (이메일 기반	)
+curl "http://202.31.246.51:80/users/me?email=user1@example.com"
+```
+
+**6**
+```
+방식 : GET
+경로 : /users/me/groups
+설명 : 내가 속한 그룹 목록 	조회
+curl "http://202.31.246.51:80/users/me/groups?email=user1@example.com"
+```
+
+**7**
+```
+방식 : POST
+경로 : /groups/recommend
+설명 : 사용자 요청 기반 AI 그룹 추천
+curl -X 'POST' 'http://202.31.246.51:80/groups/recommend' -H 'Content-Type: application/json' -d '{ "email": "snower@jj.ac.kr", "smbti": "TCPD", "name": " ", "user_request": " " }'
+```
+
+**8**
+```
+방식 : GET
+경로 : /groups
+설명 : 전체 그룹 목록 반환
+curl "http://202.31.246.51:80/groups"
+```
+
+**9**
+```
+방식 : GET
+경로 : /groups/{groupid}
+설명 : 그룹 상세조회
+curl "http://202.31.246.51:80/groups/62"
+```
+
+**10**
+```
+방식 : GET
+경로 : /groups/smbti-scores
+설명 : 전체 그룹 + MBTI 궁합 점수 반환
+curl "http://202.31.246.51:80/groups/smbti-scores?email=user1@example.com"
+```
+
+**11**
+```
+방식 : POST
+경로 : /groups/users
+설명 : 그룹에 사용자 추가
+curl -X 'POST' 'http://202.31.246.51:80/groups/users' -H 'Content-Type: application/json' -d '{ "email": "user5@example.com", "group_id": 10, "group_name": " " }'
+```
+
+**12**
+```
+방식 : POST
+경로 : /groups
+설명 : 그룹 생성
+curl -X 'POST' 'http://202.31.246.51:80/groups' -H 'Content-Type: application/json' -d '{ "email": "user3@example.com", "group_name": "새로운 스터디 그룹123", "description": "이 그룹은 최신 기술 트렌드를 학습하고 공유하기 위한 스터디 그룹입니다." }'
+```
+
+**13**
+```
+방식 : PUT
+경로 : /users/me/available-times
+설명 : 스터디 가능 시간대 업데이트
+curl -X 'PUT' 'http://202.31.246.51:80/users/me/available-times' -H 'Content-Type: application/json' -d '{ "email": "user1@example.com", "available_times": { " ": ["10:00~12:00", "13:00~15:00"], " ": ["14:00~16:00"], " ": ["16:00~18:00"] } }'
+```
+
+**14**
+```
+방식 : GET
+경로 : /users/me/available-times
+설명 : 스터디 가능 시간대 조회
+curl "http://202.31.246.51:80/users/me/available-times?email=user1@example.com"
+```
+
+**15**
+```
+방식 : GET
+경로 : /groups/{groupId}/like-times
+설명 : AI 기반 추천 시간 계산
+curl "http://202.31.246.51:80/groups/12/like-times"
+```
+
+**16**
+```
+방식 : POST
+경로 : /posts
+설명 : 게시글 작성
+curl -X 'POST' 'http://202.31.246.51:80/posts' -F 'email=user1@example.com' -F 'board_type= ' -F 'title=   ' -F 'content=     '
+```
+
+**17**
+```
+방식 : PUT
+경로 : /posts/{postId}
+설명 : 게시글 수정
+curl -X 'PUT' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: application/json' -d '{"post_id": 30, "email": "user1@example.com", "title": "       ", "content": "    " }'
+```
+
+**18**
+```
+방식 : GET
+경로 : /posts
+설명 : 게시글 목록 조회 (board_type 기준)
+curl "http://202.31.246.51:80/posts?board_type=free"
+```
+
+**19**
+```
+방식 : GET
+경로 : /posts/{postId}
+설명 : 특정 게시글 상세 조회 (postId 필요)
+curl "http://202.31.246.51:80/posts/29"
+```
+
+**20**
+```
+방식 : DELETE
+경로 : /posts/{postId}
+설명 : 게시글 삭제
+curl -X 'DELETE' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: application/json' -d '{"post_id": 30, "email": "user1@example.com" }'
+```
+
+**21**
+```
+방식 : GET
+경로 : /board-uploads/{fileName}
+설명 : 게시글에 업로드된 파일 다운로드
+curl -O 'http://202.31.246.51:80/board-uploads/{fileName}'
+```
+
+**22**
+```
+방식 : POST
+경로 : /ai/ask
+설명 : AI에게 질문, 문서 기반 질문 응답
+curl -X 'POST' 'http://202.31.246.51:80/ai/ask' -H 'Content-Type: application/json' -d '{ "question": "smbti ?" }'
+```
+
+**23**
+```
+방식 : WebSocket
+경로 : /ws/{groupId}/{senderEmail}
+설명 : 그룹 별 실시간 채팅 WebSocket 연결
+```
+
+**24**
+```
+방식 : GET
+경로 : /chat/{groupId}/history
+설명 : 특정 그룹 채팅 기록 조회 (groupId 필요)
+curl "http://202.31.246.51:80/chat/1/history"
+```
+
+**25**
+```
+방식 : POST
+경로 : /chat/summary
+설명 : AI 기반 채팅 요약 (groupId 필요)
+curl -X 'POST' 'http://202.31.246.51:80/chat/summary' -H 'Content-Type: application/json' -d '{ "group_id": 2 }'
+```
+
+**26**
+```
+방식 : GET
+경로 : /uploads/{fileName}
+설명 : 채팅에서 공유된 파일 다운로드 (fileName 필요)
+curl -O 'http://202.31.246.51:80/uploads/{fileName}'
+```
+
+**27**
+```
+방식 : POST
+경로 : /admins/promote
+설명 : 사용자 관리자 승격 (이메일 필요)
+curl -X 'POST' 'http://202.31.246.51:80/admins/promote' -H 'Content-Type: application/json' -d '{ "email": "user2@example.com"}'
+```
+
+**28**
+```
+방식 : POST
+경로 : /admins/demote
+설명 : 관리자 강등 (이메일 필요)
+curl -X 'POST' 'http://202.31.246.51:80/admins/demote' -H 'Content-Type: application/json' -d '{ "email": "user2@example.com"}'
+```
+***

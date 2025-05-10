@@ -1,0 +1,50 @@
+<resources>
+    <string name="app_name">Smiti</string>
+    <string name="logo_description">Application Logo</string>
+    <string name="prompt_id">ID(Email)</string>
+    <string name="prompt_password">Password</string>
+    <string name="action_sign_in">Login</string>
+    <string name="auto_login">로그인 상태 유지</string>
+    <string name="find_id">ID 찾기</string>
+    <string name="find_password">비밀번호 찾기</string>
+    <string name="join">회원가입</string>
+    <string name="email_label">email</string>
+    <string name="password_label">Password</string>
+    <string name="re_password_label">Re-Password</string>
+    <string name="name_label">Name</string>
+    <string name="mbti_label">SMBTI</string>
+    <string name="join_button">Join</string>
+    <string name="mbti_spinner_prompt">SMBTI 유형 선택</string>
+    <string name="phone_number_label">전화번호</string>
+    
+    <string-array name="mbti_types">
+        <item>선택 안함 (나중에 검사)</item>
+        <item>TCPD</item>
+        <item>TCFD</item>
+        <item>ECFD</item>
+        <item>TIPD</item>
+        <item>TCPM</item>
+        <item>TCFM</item>
+        <item>ECFM</item>
+        <item>TIPM</item>
+        <item>ECPM</item>
+        <item>ECFM</item>
+        <item>EIFD</item>
+        <item>EIPD</item>
+        <item>ECPD</item>
+        <item>ECFD</item>
+        <item>EIFD</item>
+        <item>EIPD</item>
+    </string-array>
+
+    <!-- 그룹 검색 관련 문자열 -->
+    <string name="member_count">참여자 %d명</string>
+    <string name="mbti_score">MBTI 궁합: %d점</string>
+    <string name="mbti_compatibility">궁합:</string>
+    <string name="search_result_title">\'%s\'에 대한 결과</string>
+    <string name="create_group">그룹 생성하기</string>
+    <string name="no_results">검색 결과가 없습니다.</string>
+    <string name="ai_creating">AI가 새로운 그룹을 생성 중입니다.</string>
+    <string name="join_group">참여하기</string>
+    <string name="search_group_hint">그룹 검색...</string>
+</resources>

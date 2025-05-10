@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 기본 마진 -->
+    <dimen name="screen_margin">60dp</dimen>
+    <dimen name="small_margin">16dp</dimen>
+    <dimen name="medium_margin">32dp</dimen>
+    <dimen name="large_margin">80dp</dimen>
+    
+    <!-- 로고 관련 -->
+    <dimen name="logo_margin_horizontal">120dp</dimen>
+    <dimen name="logo_margin_top">120dp</dimen>
+    
+    <!-- 입력 필드 -->
+    <dimen name="input_field_height">65dp</dimen>
+    <dimen name="input_padding">16dp</dimen>
+</resources>

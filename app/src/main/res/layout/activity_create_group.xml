@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/white">
+
+    <!-- 상단 툴바 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="8dp">
+
+        <ImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_arrow_back"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="뒤로가기"
+            android:padding="12dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="새 그룹 생성"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:gravity="center" />
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 그룹명 입력 필드 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="그룹명"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:layout_marginTop="16dp" />
+
+            <EditText
+                android:id="@+id/et_group_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:padding="12dp"
+                android:hint="그룹 이름을 입력하세요"
+                android:background="@drawable/bg_edit_text"
+                android:maxLines="1"
+                android:inputType="text" />
+
+            <!-- 그룹 설명 입력 필드 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="그룹 설명"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:layout_marginTop="24dp" />
+
+            <EditText
+                android:id="@+id/et_group_description"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                android:padding="12dp"
+                android:hint="그룹에 대한 설명을 입력하세요"
+                android:background="@drawable/bg_edit_text"
+                android:gravity="top"
+                android:inputType="textMultiLine" />
+
+            <!-- 관심 주제 입력 필드 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="관심 주제"
+                android:textSize="16sp"
+                android:textColor="#333333"
+                android:layout_marginTop="24dp" />
+
+            <EditText
+                android:id="@+id/et_group_topic"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:padding="12dp"
+                android:hint="관심 주제를 입력하세요 (쉼표로 구분)"
+                android:background="@drawable/bg_edit_text"
+                android:inputType="text" />
+
+            <!-- AI 추천 사용 체크박스 -->
+            <CheckBox
+                android:id="@+id/cb_use_ai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI 추천 사용"
+                android:layout_marginTop="24dp"
+                android:checked="true" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="AI 추천을 사용하면 입력하신 정보를 바탕으로 그룹 활동에 대한 추천을 받을 수 있습니다."
+                android:textSize="14sp"
+                android:textColor="#757575"
+                android:layout_marginStart="32dp"
+                android:layout_marginEnd="16dp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 그룹 생성 버튼 -->
+    <Button
+        android:id="@+id/btn_create_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="그룹 생성하기"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#4285F4"
+        android:padding="12dp"
+        android:layout_marginTop="16dp" />
+</LinearLayout> 

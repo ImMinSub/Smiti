@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/login_background"
+    tools:context=".JoinActivity">
+
+    <!-- 뒤로가기 버튼 -->
+    <ImageButton
+        android:id="@+id/back_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="뒤로 가기"
+        android:src="@drawable/ic_back"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/logo"
+        app:layout_constraintBottom_toBottomOf="@+id/logo" />
+
+    <!-- 로고 이미지 -->
+    <ImageView
+        android:id="@+id/logo"
+        android:layout_width="180dp"
+        android:layout_height="100dp"
+        android:layout_marginStart="@dimen/logo_margin_horizontal"
+        android:layout_marginTop="39dp"
+        android:layout_marginEnd="@dimen/logo_margin_horizontal"
+        android:contentDescription="@string/logo_description"
+        android:src="@drawable/smiti_logo"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.496"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_percent="0.3" />
+
+    <!-- 이메일 입력 필드 -->
+    <TextView
+        android:id="@+id/email_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="10dp"
+        android:text="@string/email_label"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/logo" />
+
+    <EditText
+        android:id="@+id/email"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:background="@drawable/edit_text_background"
+        android:hint=""
+        android:inputType="textEmailAddress"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:selectAllOnFocus="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/email_label" />
+
+    <!-- 비밀번호 입력 필드 -->
+    <TextView
+        android:id="@+id/password_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="10dp"
+        android:text="@string/password_label"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/email" />
+
+    <EditText
+        android:id="@+id/password"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:background="@drawable/edit_text_background"
+        android:hint=""
+        android:inputType="textPassword"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:selectAllOnFocus="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/password_label" />
+
+    <!-- 비밀번호 확인 입력 필드 -->
+    <TextView
+        android:id="@+id/re_password_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="10dp"
+        android:text="@string/re_password_label"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/password" />
+
+    <EditText
+        android:id="@+id/re_password"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:background="@drawable/edit_text_background"
+        android:hint=""
+        android:inputType="textPassword"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:selectAllOnFocus="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/re_password_label" />
+
+    <!-- 이름 입력 필드 -->
+    <TextView
+        android:id="@+id/name_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="10dp"
+        android:text="@string/name_label"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/re_password" />
+
+    <EditText
+        android:id="@+id/name"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:background="@drawable/edit_text_background"
+        android:hint=""
+        android:inputType="textPersonName"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:selectAllOnFocus="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/name_label" />
+
+    <!-- 회원가입 버튼 -->
+    <Button
+        android:id="@+id/join_button"
+        android:layout_width="0dp"
+        android:layout_height="55dp"
+        android:layout_marginStart="100dp"
+        android:layout_marginTop="25dp"
+        android:layout_marginEnd="100dp"
+        android:background="@drawable/login_button_background"
+        android:stateListAnimator="@null"
+        android:text="@string/join_button"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/name" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/login_background"
+    tools:context=".LoginActivity">
+
+    <!-- 로고 이미지 -->
+    <ImageView
+        android:id="@+id/logo"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="@dimen/logo_margin_horizontal"
+        android:layout_marginTop="@dimen/logo_margin_top"
+        android:layout_marginEnd="@dimen/logo_margin_horizontal"
+        android:src="@drawable/smiti_logo"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_percent="0.3"
+        android:contentDescription="@string/logo_description" />
+
+    <!-- ID 입력 필드 -->
+    <EditText
+        android:id="@+id/username"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/large_margin"
+        android:layout_marginEnd="@dimen/small_margin"
+        android:hint="@string/prompt_id"
+        android:inputType="text"
+        android:selectAllOnFocus="true"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:background="@drawable/edit_text_background"
+        app:layout_constraintEnd_toStartOf="@+id/login"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/logo" />
+
+    <!-- 비밀번호 입력 필드 -->
+    <EditText
+        android:id="@+id/password"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/input_field_height"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/medium_margin"
+        android:layout_marginEnd="@dimen/small_margin"
+        android:hint="@string/prompt_password"
+        android:imeOptions="actionDone"
+        android:inputType="textPassword"
+        android:selectAllOnFocus="true"
+        android:paddingStart="@dimen/input_padding_horizontal"
+        android:paddingEnd="@dimen/input_padding_horizontal"
+        android:paddingTop="@dimen/input_padding_vertical"
+        android:paddingBottom="@dimen/input_padding_vertical"
+        android:gravity="center_vertical"
+        android:textSize="16sp"
+        android:background="@drawable/edit_text_background"
+        app:layout_constraintEnd_toStartOf="@+id/login"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/username" />
+
+    <!-- 로그인 버튼 -->
+    <Button
+        android:id="@+id/login"
+        android:layout_width="89dp"
+        android:layout_height="127dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:background="@drawable/login_button_background"
+        android:enabled="true"
+        android:stateListAnimator="@null"
+        android:text="@string/action_sign_in"
+        android:textColor="#424242"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toBottomOf="@+id/password"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/username"
+        app:layout_constraintWidth_percent="0.2" />
+
+    <!-- 자동 로그인 영역 -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/auto_login_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/medium_margin"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/password">
+
+        <!-- 자동 로그인 체크박스 -->
+        <CheckBox
+            android:id="@+id/auto_login_checkbox"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:button="@drawable/custom_checkbox"
+            android:background="@null"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- 자동 로그인 텍스트 -->
+        <TextView
+            android:id="@+id/auto_login_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/auto_login"
+            android:textSize="18sp"
+            android:textColor="#000000"
+            app:layout_constraintBottom_toBottomOf="@+id/auto_login_checkbox"
+            app:layout_constraintStart_toEndOf="@+id/auto_login_checkbox"
+            app:layout_constraintTop_toTopOf="@+id/auto_login_checkbox" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- ID 찾기 텍스트 -->
+    <TextView
+        android:id="@+id/find_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/medium_margin"
+        android:text="@string/find_id"
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:minHeight="48dp"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/auto_login_container" />
+
+    <!-- 비밀번호 찾기 텍스트 -->
+    <TextView
+        android:id="@+id/find_password"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:text="@string/find_password"
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:minHeight="48dp"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        app:layout_constraintStart_toEndOf="@+id/find_id"
+        app:layout_constraintTop_toTopOf="@+id/find_id" />
+
+    <!-- 회원가입 텍스트 -->
+    <TextView
+        android:id="@+id/join"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:text="@string/join"
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:minHeight="48dp"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        app:layout_constraintStart_toEndOf="@+id/find_password"
+        app:layout_constraintTop_toTopOf="@+id/find_password" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
