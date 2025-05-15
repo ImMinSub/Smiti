@@ -9,6 +9,7 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
+import retrofit2.http.HTTP;
 import retrofit2.http.Headers;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
@@ -74,12 +75,12 @@ public interface ApiService {
     @Multipart
     @POST("posts")
     Call<ApiResponse> createPost(
-        @Part("email") RequestBody email,
-        @Part("board_type") RequestBody boardType, 
-        @Part("title") RequestBody title,
-        @Part("content") RequestBody content
+            @Part("email") RequestBody email,
+            @Part("board_type") RequestBody boardType,
+            @Part("title") RequestBody title,
+            @Part("content") RequestBody content
     );
-    
+
     // 파일 있는 게시글 생성 API
     @Multipart
     @POST("posts")
@@ -93,27 +94,31 @@ public interface ApiService {
 
     @PUT("posts/{postId}")
     Call<ApiResponse> updatePost(
-        @Path("postId") int postId, 
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     @GET("posts")
     Call<ApiResponse> getPosts(
-        @Query("page") int page,
-        @Query("size") int size,
-        @Query("board_type") String boardType
+            @Query("page") int page,
+            @Query("size") int size,
+            @Query("board_type") String boardType
     );
 
     @GET("posts/search")
     Call<ApiResponse> searchPosts(
-        @Query("keyword") String keyword,
-        @Query("page") int page,
-        @Query("size") int size,
-        @Query("sort") String sort
+            @Query("keyword") String keyword,
+            @Query("page") int page,
+            @Query("size") int size,
+            @Query("sort") String sort
     );
 
     @GET("posts/{postId}")
     Call<ApiResponse> getPost(@Path("postId") int postId);
+
+    // 사용자 이메일을 포함한 게시글 상세 조회 API - 사용자의 좋아요/싫어요 상태 확인을 위함
+    @GET("posts/{postId}")
+    Call<ApiResponse> getPost(@Path("postId") int postId, @Query("email") String email);
 
     @DELETE("posts/{postId}")
     Call<ApiResponse> deletePost(@Path("postId") int postId);
@@ -145,8 +150,8 @@ public interface ApiService {
     // 댓글 관련 API
     @POST("posts/{postId}/comments")
     Call<ApiResponse> createComment(
-        @Path("postId") int postId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     @GET("posts/{postId}/comments")
@@ -154,60 +159,65 @@ public interface ApiService {
 
     @PUT("posts/{postId}/comments/{commentId}")
     Call<ApiResponse> updateComment(
-        @Path("postId") int postId,
-        @Path("commentId") int commentId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Path("commentId") int commentId,
+            @Body Map<String, String> request
     );
 
     @DELETE("posts/{postId}/comments/{commentId}")
     Call<ApiResponse> deleteComment(
-        @Path("postId") int postId,
-        @Path("commentId") int commentId
+            @Path("postId") int postId,
+            @Path("commentId") int commentId
     );
 
     // 좋아요 관련 API
     @POST("posts/{postId}/likes")
     Call<ApiResponse> addLike(
-        @Path("postId") int postId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     @DELETE("posts/{postId}/likes")
     Call<ApiResponse> removeLike(
-        @Path("postId") int postId,
-        @Query("email") String email
+            @Path("postId") int postId,
+            @Query("email") String email
     );
 
     // 업데이트된 API 명세에 따른 새 메서드 추가
     // 게시글 좋아요(추천)
     @POST("posts/{postId}/like")
     Call<ApiResponse> likePost(
-        @Path("postId") int postId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     // 게시글 싫어요(비추천)
     @POST("posts/{postId}/dislike")
     Call<ApiResponse> dislikePost(
-        @Path("postId") int postId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     // 게시글 댓글 작성 (새 API 경로)
     @POST("posts/{postId}/comments")
     Call<ApiResponse> addComment(
-        @Path("postId") int postId,
-        @Body Map<String, String> request
+            @Path("postId") int postId,
+            @Body Map<String, String> request
     );
 
     // 게시글 댓글 삭제 (새 API 경로)
-    @DELETE("comments/{commentId}")
+    @HTTP(method = "DELETE", path = "comments/{comment_id}", hasBody = true)
     Call<ApiResponse> deleteCommentById(
-        @Path("commentId") int commentId,
-        @Body Map<String, String> request
+            @Path("comment_id") int commentId,
+            @Body Map<String, String> request
     );
+
 
     // 게시글 댓글 조회 (새 API 경로)
     @GET("comments/{postId}")
     Call<ApiResponse> getCommentsByPostId(@Path("postId") int postId);
+
+    // 게시글 댓글 조회 (게시글 상세 조회에 포함되어 있으므로 주석 처리 또는 제거)
+    // @GET("posts/{postId}/comments")
+    // Call<ApiResponse> getCommentsByPostId(@Path("postId") int postId);
 }
