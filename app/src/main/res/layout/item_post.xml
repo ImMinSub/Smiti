@@ -14,43 +14,34 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- 프로필 이미지 (CircleImageView 대신 일반 ImageView 사용) -->
-        <ImageView
-            android:id="@+id/iv_profile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/holo_blue_light"
-            android:contentDescription="프로필 이미지"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+        <!-- 프로필 이미지 제거 -->
 
-        <!-- 사용자 이름 -->
+        <!-- 사용자 이름 (제약조건 수정) -->
         <TextView
             android:id="@+id/tv_author"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:textColor="@android:color/black"
             android:textSize="14sp"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@+id/iv_profile"
-            app:layout_constraintTop_toTopOf="@+id/iv_profile"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             tools:text="스미티넴" />
 
-        <!-- 작성 시간 -->
+        <!-- 작성 시간 (제약조건 수정) -->
         <TextView
             android:id="@+id/tv_date"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:layout_marginTop="2dp"
             android:textColor="@android:color/darker_gray"
             android:textSize="12sp"
-            app:layout_constraintStart_toEndOf="@+id/iv_profile"
-            app:layout_constraintTop_toBottomOf="@+id/tv_author"
+            app:layout_constraintStart_toEndOf="@+id/tv_author"
+            app:layout_constraintTop_toTopOf="@+id/tv_author"
+            app:layout_constraintBottom_toBottomOf="@+id/tv_author"
             tools:text="10분 전" />
 
-        <!-- 게시글 제목 -->
+        <!-- 게시글 제목 (제약조건 수정) -->
         <TextView
             android:id="@+id/tv_title"
             android:layout_width="0dp"
@@ -61,7 +52,7 @@
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/iv_profile"
+            app:layout_constraintTop_toBottomOf="@+id/tv_author"
             tools:text="공부 습관 ★★★★" />
 
         <!-- 게시글 내용 -->
