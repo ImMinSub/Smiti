@@ -1,6 +1,7 @@
 package com.example.smiti.adapter;
 
 import android.content.Context;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,6 +21,7 @@ import java.util.Locale;
 
 public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentViewHolder> {
 
+    private static final String TAG = "CommentAdapter"; // TAG 추가
     private List<Comment> commentList;
     private Context context;
     private String currentUserEmail;
@@ -92,18 +94,19 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
         public void bind(Comment comment) {
             tvAuthor.setText(comment.getAuthorName());
             tvContent.setText(comment.getContent());
-            
+
             if (comment.getCreatedAt() != null) {
                 SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
                 tvDate.setText(dateFormat.format(comment.getCreatedAt()));
             } else {
                 tvDate.setText("");
             }
-            
+
             // 자신이 작성한 댓글만 삭제 버튼 표시
             if (currentUserEmail != null && currentUserEmail.equals(comment.getAuthorEmail())) {
                 btnDelete.setVisibility(View.VISIBLE);
                 btnDelete.setOnClickListener(v -> {
+                    Log.d(TAG, "삭제 버튼 클릭 - 댓글 ID: " + comment.getId()); // 이 로그 추가
                     if (onCommentDeleteListener != null) {
                         onCommentDeleteListener.onCommentDelete(comment.getId());
                     }
@@ -113,4 +116,4 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
             }
         }
     }
-} 
+}
