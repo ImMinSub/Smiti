@@ -457,8 +457,8 @@ public class BoardActivity extends AppCompatActivity {
                             Log.e(TAG, "좋아요 수 파싱 오류: " + e.getMessage());
                         }
                     } else {
-                        // 기본 좋아요 수 설정 (테스트용)
-                        post.setLikeCount((int)(Math.random() * 50));
+                        // 좋아요 수가 없는 경우 0으로 설정
+                        post.setLikeCount(0);
                     }
                     
                     // 댓글 수 설정
@@ -475,9 +475,23 @@ public class BoardActivity extends AppCompatActivity {
                             post.setCommentCount(0);
                             Log.e(TAG, "댓글 수 파싱 오류: " + e.getMessage());
                         }
+                    } else if (postData.get("comment_count") != null) {
+                        // 서버 응답 형식이 변경되었을 경우 (comment_count 필드도 확인)
+                        try {
+                            if (postData.get("comment_count") instanceof Integer) {
+                                post.setCommentCount((Integer) postData.get("comment_count"));
+                            } else if (postData.get("comment_count") instanceof Double) {
+                                post.setCommentCount(((Double) postData.get("comment_count")).intValue());
+                            } else {
+                                post.setCommentCount(Integer.parseInt(postData.get("comment_count").toString()));
+                            }
+                        } catch (NumberFormatException e) {
+                            post.setCommentCount(0);
+                            Log.e(TAG, "댓글 수 파싱 오류 (comment_count): " + e.getMessage());
+                        }
                     } else {
-                        // 기본 댓글 수 설정 (테스트용)
-                        post.setCommentCount((int)(Math.random() * 20));
+                        // 댓글 수가 없는 경우 0으로 설정
+                        post.setCommentCount(0);
                     }
                     
                     // 조회수 설정
@@ -495,8 +509,8 @@ public class BoardActivity extends AppCompatActivity {
                             Log.e(TAG, "조회수 파싱 오류: " + e.getMessage());
                         }
                     } else {
-                        // 기본 조회수 설정 (테스트용)
-                        post.setViewCount((int)(Math.random() * 200));
+                        // 조회수가 없는 경우 0으로 설정
+                        post.setViewCount(0);
                     }
                     
                     // 파일 이름 설정
