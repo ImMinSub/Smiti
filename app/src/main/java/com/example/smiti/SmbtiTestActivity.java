@@ -25,7 +25,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import com.example.smiti.api.RetrofitClient;
 import com.example.smiti.api.UpdateSmbtiRequest;
@@ -53,10 +55,24 @@ public class SmbtiTestActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     
     private List<SmbtiQuestion> questions;
+    private List<SmbtiQuestion> selectedQuestions; // 각 카테고리에서 선택된 질문들
     private int currentQuestion = 0;
-    private int[] answers = new int[12]; // 0: A 선택, 1: B 선택, -1: 미선택
+    private int[] answers; // 0: A 선택, 1: B 선택, -1: 미선택
     private boolean optionASelected = false;
     private boolean optionBSelected = false;
+    
+    // 각 카테고리별 인덱스 범위 상수
+    private static final int CATEGORY_1_START = 0;  // 학습 접근 방식 시작 인덱스
+    private static final int CATEGORY_1_END = 2;    // 학습 접근 방식 끝 인덱스
+    private static final int CATEGORY_2_START = 3;  // 협업 스타일 시작 인덱스
+    private static final int CATEGORY_2_END = 5;    // 협업 스타일 끝 인덱스
+    private static final int CATEGORY_3_START = 6;  // 학습 동기 시작 인덱스
+    private static final int CATEGORY_3_END = 8;    // 학습 동기 끝 인덱스
+    private static final int CATEGORY_4_START = 9;  // 정보 수용 방식 시작 인덱스
+    private static final int CATEGORY_4_END = 11;   // 정보 수용 방식 끝 인덱스
+    
+    // 각 카테고리별 선택된 질문 인덱스를 저장하는 배열
+    private int[][] selectedQuestionIndices;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,10 +93,14 @@ public class SmbtiTestActivity extends AppCompatActivity {
         progressText = findViewById(R.id.progress_text);
         progressBar = findViewById(R.id.progress_bar);
         
-        // 질문 초기화
+        // 질문 초기화 (이미 내부에서 카테고리별 질문을 3개씩 랜덤하게 선택함)
         initQuestions();
         
+        // 선택된 질문을 저장
+        selectedQuestions = new ArrayList<>(questions);
+        
         // 답변 배열 초기화
+        answers = new int[questions.size()]; // 질문 개수에 맞게 배열 크기 조정
         for (int i = 0; i < answers.length; i++) {
             answers[i] = -1; // 모든 질문을 미응답 상태로 초기화
         }
@@ -172,74 +192,130 @@ public class SmbtiTestActivity extends AppCompatActivity {
     
     private void initQuestions() {
         questions = new ArrayList<>();
+        List<SmbtiQuestion> category1 = new ArrayList<>(); // 학습 접근 방식 (이론형 vs 실행형)
+        List<SmbtiQuestion> category2 = new ArrayList<>(); // 협업 스타일 (개별학습형 vs 협력형)
+        List<SmbtiQuestion> category3 = new ArrayList<>(); // 학습 동기 (목표지향형 vs 유연지향형)
+        List<SmbtiQuestion> category4 = new ArrayList<>(); // 정보 수용 방식 (세부중심형 vs 아이디어중심형)
         
-        // 1-3: 학습 접근 방식 (이론형 vs 실행형)
-        questions.add(new SmbtiQuestion(
-                "Q1. 새로운 걸 배울 때, 어떤 것이 효과적이라 생각하시나요?",
-                "새로운 내용을 배울 때,\n먼저 개념적인 설명이나\n이론을 이해하는 것이\n중요하다고 생각한다.",
-                "새로운 내용을 배울 때,\n직접 해보거나 실습을 통해\n익히는 것이 더 효과적이라고\n생각한다."
+        // 1. 학습 접근 방식: 이론형 vs 실행형 (5개 질문)
+        category1.add(new SmbtiQuestion(
+                "1-1. 새로운 것을 배울 때",
+                "개념, 원리 등 이론적 설명부터 깊이 이해해야 한다.",
+                "일단 해보면서 직접 경험하고 익히는 것이 편하다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q2. 공부할 때, 어떤 방식을 선호하시나요?",
-                "설명을 듣고 머릿속으로\n논리적으로 정리하는 과정을\n중요하게 생각한다.",
-                "직접 문제를 풀거나\n자료를 다루면서\n감각적으로 이해하는 것을\n선호한다."
+        category1.add(new SmbtiQuestion(
+                "1-2. 공부나 작업에 들어가기 전에",
+                "관련 이론이나 배경 지식을 충분히 학습하고 시작하는 편이다.",
+                "바로 실전 문제나 과제에 부딪히며 배워나가는 편이다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q3. 학습 방법으로, 어떤 것을 선호하시나요?",
-                "전체적인 구조나 순서를\n먼저 파악하고 나서\n세부적인 내용을 공부하는 것을\n선호한다.",
-                "전체적인 구조보다는\n당장 눈앞의 과제나 문제부터\n해결하면서 학습하는 것을\n선호한다."
+        category1.add(new SmbtiQuestion(
+                "1-3. 설명 자료를 볼 때",
+                "실생활 적용 예시보다 개념 설명이 더 와닿고 중요하다.",
+                "개념 설명보다는 직접 해볼 수 있는 실습 과정에 집중하게 된다."
         ));
-        
-        // 4-6: 협업 스타일 (개별학습형 vs 협력형)
-        questions.add(new SmbtiQuestion(
-                "Q4. 학습 환경으로, 어떤 것이 더 효율적인가요?",
-                "혼자 조용한 환경에서\n집중하여 공부하는 것이\n더 효율적이라고 느낀다.",
-                "여러 사람들과 함께\n아이디어를 공유하고 토론하면서\n공부하는 것이 더 즐겁고\n효과적이라고 느낀다."
+        category1.add(new SmbtiQuestion(
+                "1-4. 문제를 푸는 방식",
+                "개념을 먼저 확실히 이해한 후에 문제를 푸는 편이다.",
+                "문제를 먼저 풀어보면서 개념을 역으로 파악하기도 한다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q5. 학습 계획에서, 어떤 것이 편한가요?",
-                "그룹 스터디보다는 혼자\n계획을 세우고 자신의 계획대로\n공부하는 것이 편하다.",
-                "다른 사람들과 함께 목표를\n설정하고 서로에게 동기 부여를\n받으며 공부하는 것을 선호한다."
-        ));
-        questions.add(new SmbtiQuestion(
-                "Q6. 협업에 대해, 어떻게 생각하시나요?",
-                "다른 사람들의 의견이 많거나\n협업 과정이 복잡하면\n오히려 집중하기 어렵다고 느낀다.",
-                "다양한 사람들의 관점을 접하고\n함께 문제를 해결해 나가는\n과정에서 새로운 아이디어를\n얻는 것을 좋아한다."
+        category1.add(new SmbtiQuestion(
+                "1-5. 학습 효율을 높이는 방법",
+                "설명을 듣고 머릿속으로 체계적으로 정리하는 것이 중요하다.",
+                "설명을 듣는 것보다 직접 손으로 만지거나 조작하며 해보는 것이 더 효과적이다."
         ));
         
-        // 7-9: 학습 동기 (목표지향형 vs 유연지향형)
-        questions.add(new SmbtiQuestion(
-                "Q7. 학습 계획에 대해, 어떤 것이 중요한가요?",
-                "학습 계획을 꼼꼼하게 세우고\n그 계획에 따라 꾸준히 실천하는\n것을 중요하게 생각한다.",
-                "미리 정해진 계획보다는\n자신의 컨디션이나 상황에 맞춰\n학습 내용을 유연하게\n조절하는 것을 선호한다."
+        // 2. 협업 스타일: 개별학습형 vs 협력형 (5개 질문)
+        category2.add(new SmbtiQuestion(
+                "2-1. 선호하는 학습 환경",
+                "혼자 조용히 집중하며 공부할 때 가장 효율이 높다.",
+                "여러 사람과 함께 아이디어를 나누고 소통하며 공부할 때 더 잘 된다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q8. 학습 목표에 대해, 어떤 것이 만족스러운가요?",
-                "정해진 학습 시간과 목표량을\n채우는 것에 만족감을 느낀다.",
-                "학습 진도나 시간에 얽매이기보다는\n흥미를 느끼는 분야를\n깊이 있게 탐구하는 것을 좋아한다."
+        category2.add(new SmbtiQuestion(
+                "2-2. 그룹 스터디 참여",
+                "그룹 스터디보다는 혼자 계획을 세우고 실행하는 것이 더 익숙하고 편하다.",
+                "스터디에 참여하면 책임감이 생기고 진도가 잘 나가는 편이다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q9. 계획 변경에 대해, 어떻게 생각하시나요?",
-                "예상치 못한 상황이나\n변경 사항이 발생하는 것을\n별로 좋아하지 않는다.",
-                "새로운 아이디어가 떠오르거나\n흥미로운 주제가 생기면\n원래 계획을 수정해서라도\n시도해보고 싶어 한다."
+        category2.add(new SmbtiQuestion(
+                "2-3. 다른 사람의 의견",
+                "타인의 의견이 많으면 오히려 집중력이 흐트러지고 방해가 되기도 한다.",
+                "공부하다 막히는 부분이 있으면 누군가와 대화하며 해결하는 것이 더 빠르고 효과적이다."
+        ));
+        category2.add(new SmbtiQuestion(
+                "2-4. 혼자 있는 시간 vs 함께 하는 시간",
+                "혼자만의 시간이 공부 효율을 높이는 데 중요하다고 느낀다.",
+                "같은 목표를 가진 사람들과 함께 할 때 동기 부여가 되고 공부에 도움이 된다."
+        ));
+        category2.add(new SmbtiQuestion(
+                "2-5. 이해를 돕는 방식",
+                "혼자 차분히 정리하며 스스로 이해하는 것을 선호한다.",
+                "다른 사람에게 설명해주거나 설명을 들을 때 이해가 더 잘 되는 편이다."
         ));
         
-        // 10-12: 정보 수용 방식 (세부중심형 vs 아이디어중심형)
-        questions.add(new SmbtiQuestion(
-                "Q10. 학습 내용 이해에서, 어떤 것이 더 쉬운가요?",
-                "구체적인 예시나 사례를 통해\n이해하는 것이 더 쉽다.",
-                "핵심적인 원리나 개념을\n먼저 파악하는 것이 중요하다."
+        // 3. 학습 동기: 목표 지향형 vs 유연지향형 (5개 질문)
+        category3.add(new SmbtiQuestion(
+                "3-1. 학습 계획의 중요성",
+                "학습 전에 명확한 목표와 구체적인 계획을 세우는 것이 매우 중요하다.",
+                "계획을 세우는 것보다 일단 시작하고 그때그때 상황에 맞추는 것이 더 자연스럽다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q11. 정보 선호도에서, 어떤 것을 선호하시나요?",
-                "폭넓은 아이디어나 추상적인\n설명보다는 명확하고\n자세한 정보를 선호한다.",
-                "세부적인 내용보다는\n전체적인 그림이나 맥락을\n이해하는 데 더 집중한다."
+        category3.add(new SmbtiQuestion(
+                "3-2. 계획 준수 vs 유연성",
+                "계획표를 만들어두면 그에 따라 실천하려고 노력하며 마음이 편안하다.",
+                "기분이나 컨디션에 따라 학습 시간을 유동적으로 조절하는 것을 선호한다."
         ));
-        questions.add(new SmbtiQuestion(
-                "Q12. 문제 해결 접근법으로, 어떤 것을 선호하시나요?",
-                "복잡한 문제나 과제를 해결할 때,\n단계별로 차근차근 접근하는 것을\n선호한다.",
-                "복잡한 문제나 과제를 해결할 때,\n다양한 가능성을 열어두고\n창의적인 해결책을 모색하는 것을\n즐긴다."
+        category3.add(new SmbtiQuestion(
+                "3-3. 마감일의 영향",
+                "마감일이나 일정이 명확해야 집중력이 높아지고 실행하게 된다.",
+                "마감일에 쫓기기보다 가능한 만큼 꾸준히 해내는 걸 선호하며, 갑작스러운 일정 변경에도 유연하게 대처한다."
         ));
+        category3.add(new SmbtiQuestion(
+                "3-4. 동기 부여 요인",
+                "학습 목표가 분명하고 구체적일수록 더 강하게 동기 부여가 된다.",
+                "목표를 정해두지 않아도 흥미나 필요에 따라 자율적으로 학습하는 편이다."
+        ));
+        category3.add(new SmbtiQuestion(
+                "3-5. 학습 흐름 조절",
+                "정해진 계획과 루틴에 따라 학습 흐름을 유지하는 것이 중요하다.",
+                "스스로 학습 흐름을 조절하며 자율적으로 공부하는 것을 더 편하게 느낀다."
+        ));
+        
+        // 4. 정보 수용 방식: 세부중심형 vs 아이디어 중심형 (5개 질문)
+        category4.add(new SmbtiQuestion(
+                "4-1. 정보 습득 시 초점",
+                "구체적인 예시, 정확한 정의, 세부 원리 등 디테일한 정보에 먼저 집중한다.",
+                "전체적인 맥락, 핵심 아이디어, 큰 그림을 먼저 파악하려고 한다."
+        ));
+        category4.add(new SmbtiQuestion(
+                "4-2. 설명이나 자료를 볼 때",
+                "작은 부분이나 디테일한 표현 하나하나까지 놓치지 않으려고 노력한다.",
+                "핵심 개념이나 몇 가지 중요한 내용만으로도 충분히 이해가 된다고 느낀다."
+        ));
+        category4.add(new SmbtiQuestion(
+                "4-3. 중요한 정보의 기준",
+                "전체 흐름이나 구조보다는 정확한 사실이나 세부 사항이 더 중요하다고 생각한다.",
+                "세부 내용보다는 논리 구조나 전체적인 방향성을 이해하는 것이 우선이라고 생각한다."
+        ));
+        category4.add(new SmbtiQuestion(
+                "4-4. 학습 자료 검토 시",
+                "학습 자료에서 빠지거나 잘못된 세부 사항이 보이면 찝찝하고 신경 쓰인다.",
+                "먼저 전체 맥락을 파악하고 나면 세부 내용은 자연스럽게 따라오거나 나중에 보충해도 된다고 생각한다."
+        ));
+        category4.add(new SmbtiQuestion(
+                "4-5. 개념 이해 방식",
+                "구체적인 사례나 문제를 통해 개념을 배우는 것을 좋아한다.",
+                "개념적 틀이나 구조를 먼저 알고 나면 세부 내용은 더 쉽게 이해된다."
+        ));
+        
+        // 각 카테고리에서 3개씩 랜덤 선택
+        Collections.shuffle(category1);
+        Collections.shuffle(category2);
+        Collections.shuffle(category3);
+        Collections.shuffle(category4);
+        
+        // 선택된 질문 추가 (순서대로 카테고리1→카테고리2→카테고리3→카테고리4)
+        for (int i = 0; i < 3; i++) questions.add(category1.get(i));
+        for (int i = 0; i < 3; i++) questions.add(category2.get(i));
+        for (int i = 0; i < 3; i++) questions.add(category3.get(i));
+        for (int i = 0; i < 3; i++) questions.add(category4.get(i));
     }
     
     private void displayQuestion(int questionIndex) {
@@ -300,14 +376,14 @@ public class SmbtiTestActivity extends AppCompatActivity {
     }
     
     private String calculateFirstLetter() {
-        // 첫 3개 질문 (0, 1, 2)
+        // 첫 번째 카테고리 (0, 1, 2번 인덱스)
         int theoryCount = 0;
         int experienceCount = 0;
         
         for (int i = 0; i <= 2; i++) {
             if (answers[i] == 0) {
                 theoryCount++;
-            } else {
+            } else if (answers[i] == 1) {
                 experienceCount++;
             }
         }
@@ -316,14 +392,14 @@ public class SmbtiTestActivity extends AppCompatActivity {
     }
     
     private String calculateSecondLetter() {
-        // 다음 3개 질문 (3, 4, 5)
+        // 두 번째 카테고리 (3, 4, 5번 인덱스)
         int individualCount = 0;
         int collaborativeCount = 0;
         
         for (int i = 3; i <= 5; i++) {
             if (answers[i] == 0) {
                 individualCount++;
-            } else {
+            } else if (answers[i] == 1) {
                 collaborativeCount++;
             }
         }
@@ -332,14 +408,14 @@ public class SmbtiTestActivity extends AppCompatActivity {
     }
     
     private String calculateThirdLetter() {
-        // 다음 3개 질문 (6, 7, 8)
+        // 세 번째 카테고리 (6, 7, 8번 인덱스)
         int plannedCount = 0;
         int flexibleCount = 0;
         
         for (int i = 6; i <= 8; i++) {
             if (answers[i] == 0) {
                 plannedCount++;
-            } else {
+            } else if (answers[i] == 1) {
                 flexibleCount++;
             }
         }
@@ -348,14 +424,14 @@ public class SmbtiTestActivity extends AppCompatActivity {
     }
     
     private String calculateFourthLetter() {
-        // 마지막 3개 질문 (9, 10, 11)
+        // 네 번째 카테고리 (9, 10, 11번 인덱스)
         int detailCount = 0;
         int conceptCount = 0;
         
         for (int i = 9; i <= 11; i++) {
             if (answers[i] == 0) {
                 detailCount++;
-            } else {
+            } else if (answers[i] == 1) {
                 conceptCount++;
             }
         }
