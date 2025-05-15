@@ -49,7 +49,7 @@ public class Post implements Serializable {
     }
 
     // 파일 있는 게시글 생성 생성자
-    public Post(String title, String content, String authorId, String authorName, String category, 
+    public Post(String title, String content, String authorId, String authorName, String category,
                 String fileUrl, String fileName, long fileSize, boolean isNotice) {
         this.title = title;
         this.content = content;
@@ -170,10 +170,10 @@ public class Post implements Serializable {
     // 파일 크기를 읽기 쉽게 반환하는 메서드
     public String getReadableFileSize() {
         if (fileSize <= 0) return "0 B";
-        
+
         final String[] units = new String[] { "B", "KB", "MB", "GB", "TB" };
         int digitGroups = (int) (Math.log10(fileSize) / Math.log10(1024));
-        
+
         return String.format("%.1f %s", fileSize / Math.pow(1024, digitGroups), units[digitGroups]);
     }
 
@@ -200,4 +200,25 @@ public class Post implements Serializable {
     public void setViewCount(int viewCount) {
         this.viewCount = viewCount;
     }
-} 
+
+    @Override
+    public String toString() {
+        return "Post{" +
+                "id='" + id + '\'' +
+                ", title='" + title + '\'' +
+                ", content='" + content + '\'' +
+                ", authorId='" + authorId + '\'' +
+                ", authorName='" + authorName + '\'' +
+                ", category='" + category + '\'' +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", fileUrl='" + fileUrl + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", fileSize=" + fileSize +
+                ", isNotice=" + isNotice +
+                ", likeCount=" + likeCount +
+                ", commentCount=" + commentCount +
+                ", viewCount=" + viewCount +
+                '}';
+    }
+}
