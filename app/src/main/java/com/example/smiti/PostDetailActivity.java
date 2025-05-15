@@ -233,34 +233,54 @@ public class PostDetailActivity extends AppCompatActivity {
         }
     }
     private void displayPostData(ApiResponse apiResponse) {
-        Log.d(TAG, "displayPostData() 호출됨 - 전달받은 ApiResponse: " + apiResponse.toString()); // 전달받은 데이터 확인 (디버깅용)
+        Log.d(TAG, "displayPostData() 호출됨 - 전달받은 ApiResponse: " + (apiResponse != null ? apiResponse.toString() : "null"));
 
-        if (apiResponse.getPost() != null) {
+        if (apiResponse != null && apiResponse.getPost() != null) {
             Map<String, Object> postData = apiResponse.getPost();
-            post = new Post();
-            post.setId(String.valueOf(((Number) postData.get("id")).intValue()));
-            Log.d(TAG, "displayPostData() - post.getId(): " + post.getId());
-            post.setTitle((String) postData.get("title"));
-            post.setContent((String) postData.get("content"));
-            post.setAuthorId((String) postData.get("email"));
-            post.setAuthorName((String) postData.get("name"));
-            post.setCategory((String) postData.get("board_type"));
+            
+            // Ensure post object is initialized
+            if (this.post == null) {
+                this.post = new Post();
+            }
 
-            // 날짜 설정
+            // ID 및 기본 정보 설정
+            try {
+                Object idObj = postData.get("id");
+                if (idObj != null) {
+                    this.post.setId(String.valueOf(((Number) idObj).intValue()));
+                    Log.d(TAG, "displayPostData() - post.getId(): " + this.post.getId());
+                } else {
+                    Log.e(TAG, "displayPostData() - Post ID is null from server.");
+                    // Handle error: maybe finish activity or show error message
+                    Toast.makeText(this, "게시글 ID를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
+                    finish();
+                    return;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "displayPostData() - Error parsing Post ID: " + postData.get("id"), e);
+                Toast.makeText(this, "게시글 ID 파싱 오류.", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+            
+            this.post.setTitle((String) postData.get("title"));
+            this.post.setContent((String) postData.get("content"));
+            this.post.setAuthorId((String) postData.get("email")); // Assuming 'email' is authorId
+            this.post.setAuthorName((String) postData.get("name")); // Assuming 'name' is authorName
+            this.post.setCategory((String) postData.get("board_type"));
+
+            // 날짜 설정 (기존 로직 유지)
             try {
                 if (postData.get("created_at") != null) {
                     String createdAtStr = postData.get("created_at").toString();
                     SimpleDateFormat serverFormat;
-
                     if (createdAtStr.contains(".")) {
                         serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());
                     } else {
                         serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
                     }
-
                     Date createdAt = serverFormat.parse(createdAtStr);
-                    post.setCreatedAt(createdAt);
-
+                    this.post.setCreatedAt(createdAt);
                     SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
                     tvDate.setText(displayFormat.format(createdAt));
                 }
@@ -269,10 +289,10 @@ public class PostDetailActivity extends AppCompatActivity {
                 tvDate.setText("날짜 정보 없음");
             }
 
-            // 파일 정보 설정
+            // 파일 정보 설정 (기존 로직 유지)
             if (postData.get("file_name") != null) {
                 String fileName = (String) postData.get("file_name");
-                post.setFileName(fileName);
+                this.post.setFileName(fileName);
                 tvFileName.setText(fileName);
                 file_container.setVisibility(View.VISIBLE);
                 btnDownload.setVisibility(View.VISIBLE);
@@ -281,59 +301,88 @@ public class PostDetailActivity extends AppCompatActivity {
                 btnDownload.setVisibility(View.GONE);
             }
 
-            // 좋아요/싫어요 수 설정
-            if (postData.get("like_count") != null) {
-                try {
-                    likeCount = Integer.parseInt(postData.get("like_count").toString());
-                    post.setLikeCount(likeCount);
-                    tvLikeCount.setText(String.valueOf(likeCount));
-                } catch (NumberFormatException e) {
-                    Log.e(TAG, "좋아요 수 파싱 오류: " + e.getMessage(), e);
-                    tvLikeCount.setText("0");
-                }
-            } else {
-                // 좋아요 수가 없는 경우 0으로 설정
-                likeCount = 0;
-                tvLikeCount.setText("0");
-            }
+            // 상세 로깅: 서버로부터 받은 원시 데이터
+            Log.d(TAG, "displayPostData - Raw from server: like_count=" + postData.get("like_count") +
+                    ", dislike_count=" + postData.get("dislike_count") +
+                    ", user_like_status=" + postData.get("user_like_status"));
 
-            if (postData.get("dislike_count") != null) {
+            // 좋아요 수 설정
+            Object likeCountObj = postData.get("like_count");
+            if (likeCountObj != null) {
                 try {
-                    dislikeCount = Integer.parseInt(postData.get("dislike_count").toString());
-                    tvDislikeCount.setText(String.valueOf(dislikeCount));
-                } catch (NumberFormatException e) {
-                    Log.e(TAG, "싫어요 수 파싱 오류: " + e.getMessage(), e);
-                    tvDislikeCount.setText("0");
+                    this.likeCount = ((Number) likeCountObj).intValue();
+                } catch (ClassCastException | NumberFormatException e1) {
+                    Log.w(TAG, "Like count direct number parsing failed (" + likeCountObj + "), trying string parsing.", e1);
+                    try {
+                        this.likeCount = Integer.parseInt(likeCountObj.toString());
+                    } catch (NumberFormatException e2) {
+                        Log.e(TAG, "Error parsing like_count as string: " + likeCountObj, e2);
+                        this.likeCount = 0; // 파싱 실패 시 0으로 설정
+                    }
                 }
             } else {
-                // 싫어요 수가 없는 경우 0으로 설정
-                dislikeCount = 0;
-                tvDislikeCount.setText("0");
+                Log.d(TAG, "like_count is null from server.");
+                this.likeCount = 0;
             }
+            if (this.post != null) this.post.setLikeCount(this.likeCount); // Post 객체에도 반영
+            tvLikeCount.setText(String.valueOf(this.likeCount));
+
+            // 싫어요 수 설정
+            Object dislikeCountObj = postData.get("dislike_count");
+            if (dislikeCountObj != null) {
+                try {
+                    this.dislikeCount = ((Number) dislikeCountObj).intValue();
+                } catch (ClassCastException | NumberFormatException e1) {
+                    Log.w(TAG, "Dislike count direct number parsing failed (" + dislikeCountObj + "), trying string parsing.", e1);
+                    try {
+                        this.dislikeCount = Integer.parseInt(dislikeCountObj.toString());
+                    } catch (NumberFormatException e2) {
+                        Log.e(TAG, "Error parsing dislike_count as string: " + dislikeCountObj, e2);
+                        this.dislikeCount = 0; // 파싱 실패 시 0으로 설정
+                    }
+                }
+            } else {
+                Log.d(TAG, "dislike_count is null from server.");
+                this.dislikeCount = 0;
+            }
+            if (this.post != null) this.post.setDislikeCount(this.dislikeCount); // Post 객체에도 반영
+            tvDislikeCount.setText(String.valueOf(this.dislikeCount));
             
             // 사용자의 좋아요/싫어요 상태 확인
-            if (postData.get("user_like_status") != null) {
-                String likeStatus = postData.get("user_like_status").toString();
-                hasLiked = "liked".equals(likeStatus);
-                hasDisliked = "disliked".equals(likeStatus);
+            Object userLikeStatusObj = postData.get("user_like_status");
+            if (userLikeStatusObj != null) {
+                String likeStatus = userLikeStatusObj.toString();
+                this.hasLiked = "liked".equals(likeStatus);
+                this.hasDisliked = "disliked".equals(likeStatus);
             } else {
-                // 서버에서 상태 정보가 없으면 기본값으로 설정
-                hasLiked = false;
-                hasDisliked = false;
+                Log.d(TAG, "user_like_status is null from server.");
+                this.hasLiked = false;
+                this.hasDisliked = false;
             }
+            // Note: Assuming Post model does not need to store hasLiked/hasDisliked for now.
 
-            // UI 업데이트
-            tvTitle.setText(post.getTitle());
-            tvContent.setText(post.getContent());
-            tvAuthor.setText(post.getAuthorName());
-            tvCategory.setText(post.getCategory());
+            // 최종 파싱된 값 로깅
+            Log.d(TAG, "displayPostData - Parsed values: likeCount=" + this.likeCount +
+                    ", dislikeCount=" + this.dislikeCount +
+                    ", hasLiked=" + this.hasLiked + ", hasDisliked=" + this.hasDisliked);
 
-            updateLikeButtonState();
+            // 나머지 UI 업데이트
+            tvTitle.setText(this.post.getTitle());
+            tvContent.setText(this.post.getContent());
+            tvAuthor.setText(this.post.getAuthorName());
+            tvCategory.setText(this.post.getCategory());
+
+            updateLikeButtonState(); // 버튼 텍스트 등 상태 업데이트 (내용은 변경하지 않음)
             updateDislikeButtonState();
+
+        } else {
+            Log.e(TAG, "displayPostData - ApiResponse or Post data is null.");
+            Toast.makeText(this, "게시글 데이터를 표시할 수 없습니다.", Toast.LENGTH_SHORT).show();
+            // Optionally finish activity or show a more specific error UI
         }
 
-        // 댓글 목록 처리
-        if (apiResponse.getComments() != null && !apiResponse.getComments().isEmpty()) {
+        // 댓글 목록 처리 (기존 로직 유지)
+        if (apiResponse != null && apiResponse.getComments() != null && !apiResponse.getComments().isEmpty()) {
             List<Map<String, Object>> commentDataList = apiResponse.getComments();
             Log.d(TAG, "displayPostData() - commentDataList 크기: " + commentDataList.size());
             List<Comment> comments = new ArrayList<>();
@@ -346,9 +395,11 @@ public class PostDetailActivity extends AppCompatActivity {
             commentAdapter.setComments(comments);
             commentAdapter.notifyDataSetChanged();
         } else {
-            Log.d(TAG, "게시글 데이터에 댓글 목록이 없습니다.");
-            commentAdapter.setComments(new ArrayList<>());
-            commentAdapter.notifyDataSetChanged();
+            Log.d(TAG, "displayPostData - No comments in ApiResponse or comments list is empty.");
+            if (commentAdapter != null) { // Ensure adapter is initialized
+                 commentAdapter.setComments(new ArrayList<>());
+                 commentAdapter.notifyDataSetChanged();
+            }
         }
     }
     private void updateLikeButtonState() {
@@ -373,16 +424,15 @@ public class PostDetailActivity extends AppCompatActivity {
             call.enqueue(new Callback<ApiResponse>() {
                 @Override
                 public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
-                    showLoading(false);
+                    showLoading(false); // loadPostDetails가 자체적으로 로딩 관리를 하므로 여기서 false로 설정
                     
                     if (response.isSuccessful() && response.body() != null) {
                         ApiResponse apiResponse = response.body();
                         if (apiResponse.isSuccess()) {
-                            hasLiked = true;
-                            likeCount++;
-                            tvLikeCount.setText(String.valueOf(likeCount));
-                            updateLikeButtonState();
+                            hasLiked = true; // 중복 클릭 방지를 위해 로컬 상태 우선 업데이트
+                            // updateLikeButtonState(); // loadPostDetails 후 displayPostData에서 호출됨
                             Toast.makeText(PostDetailActivity.this, "좋아요를 눌렀습니다.", Toast.LENGTH_SHORT).show();
+                            loadPostDetails(postId); // 서버로부터 최신 정보 로드하여 UI 전체 업데이트
                         } else {
                             Toast.makeText(PostDetailActivity.this, "좋아요 실패: " + apiResponse.getMessage(), Toast.LENGTH_SHORT).show();
                         }
@@ -416,16 +466,15 @@ public class PostDetailActivity extends AppCompatActivity {
             call.enqueue(new Callback<ApiResponse>() {
                 @Override
                 public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
-                    showLoading(false);
+                    showLoading(false); // loadPostDetails가 자체적으로 로딩 관리를 하므로 여기서 false로 설정
                     
                     if (response.isSuccessful() && response.body() != null) {
                         ApiResponse apiResponse = response.body();
                         if (apiResponse.isSuccess()) {
-                            hasDisliked = true;
-                            dislikeCount++;
-                            tvDislikeCount.setText(String.valueOf(dislikeCount));
-                            updateDislikeButtonState();
+                            hasDisliked = true; // 중복 클릭 방지를 위해 로컬 상태 우선 업데이트
+                            // updateDislikeButtonState(); // loadPostDetails 후 displayPostData에서 호출됨
                             Toast.makeText(PostDetailActivity.this, "싫어요를 눌렀습니다.", Toast.LENGTH_SHORT).show();
+                            loadPostDetails(postId); // 서버로부터 최신 정보 로드하여 UI 전체 업데이트
                         } else {
                             Toast.makeText(PostDetailActivity.this, "싫어요 실패: " + apiResponse.getMessage(), Toast.LENGTH_SHORT).show();
                         }
@@ -798,15 +847,17 @@ public class PostDetailActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // 화면이 다시 보여질 때 최신 데이터 로드 (첫 로드 시에만 조회수 증가)
         if (postId != null) {
             if (isFirstLoad) {
-                // 첫 로드 시에만 API 호출
+                // 첫 번째 onResume 호출 (onCreate 직후). 
+                // onCreate에서 loadPostDetails가 이미 호출되었으므로 여기서는 호출하지 않음.
+                // isFirstLoad를 false로 설정하여 다음 onResume부터는 새로고침하도록 함.
+                isFirstLoad = false;
+            } else {
+                // 첫 번째 onResume이 아닌 경우 (화면으로 돌아온 경우)
+                // 서버로부터 최신 정보를 로드합니다.
+                Log.d(TAG, "onResume: Subsequent call, refreshing post details for postId: " + postId);
                 loadPostDetails(postId);
-                isFirstLoad = false; // 첫 로드 완료 후 플래그 변경
-            } else if (cachedResponse != null) {
-                // 캐시된 응답이 있으면 이를 사용하여 UI 업데이트
-                displayPostData(cachedResponse);
             }
         }
     }
