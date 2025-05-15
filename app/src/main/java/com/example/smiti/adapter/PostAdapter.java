@@ -128,7 +128,6 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
     }
 
     static class PostViewHolder extends RecyclerView.ViewHolder {
-        ImageView profileImage;
         TextView authorText, dateText, titleText, contentText, categoryText;
         TextView likeCountText, commentCountText, viewCountText;
         ImageView fileAttachmentIcon;
@@ -136,7 +135,6 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
         public PostViewHolder(@NonNull View itemView, final OnItemClickListener listener) {
             super(itemView);
             
-            profileImage = itemView.findViewById(R.id.iv_profile);
             authorText = itemView.findViewById(R.id.tv_author);
             dateText = itemView.findViewById(R.id.tv_date);
             titleText = itemView.findViewById(R.id.tv_title);
