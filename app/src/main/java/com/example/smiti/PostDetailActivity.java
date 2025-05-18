@@ -13,7 +13,10 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.ActivityNotFoundException; // 추가
+import android.os.Build; // 추가
 
+import androidx.core.content.FileProvider; // 추가
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -44,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import de.hdodenhof.circleimageview.BuildConfig;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -289,25 +293,46 @@ public class PostDetailActivity extends AppCompatActivity {
                 tvDate.setText("날짜 정보 없음");
             }
 
-            // 파일 정보 설정 (기존 로직 유지)
-            if (postData.get("file_name") != null) {
-                String fileName = (String) postData.get("file_name");
-                this.post.setFileName(fileName);
-                tvFileName.setText(fileName);
+            // 파일 정보 설정 (수정됨: file_path에서 순수 파일 이름 추출)
+            Object filePathObj = postData.get("file_path"); // 1. "file_path" 키로 객체를 가져옵니다.
+            if (filePathObj != null && !filePathObj.toString().isEmpty()) { // 2. null이 아니고 빈 문자열이 아닌지 확인합니다.
+                String fullFilePath = filePathObj.toString(); // 3. 객체를 문자열로 변환합니다 (예: "board_uploads/실제파일이름.pdf")
+                String extractedFileName = fullFilePath; // 4. 추출된 파일 이름을 담을 변수, 기본값은 전체 경로
+
+                // 5. 경로 구분자 '/'가 있는지 확인하고, 있다면 마지막 '/' 이후의 문자열을 추출합니다.
+                int lastSeparatorIndex = fullFilePath.lastIndexOf('/');
+                if (lastSeparatorIndex != -1 && lastSeparatorIndex < fullFilePath.length() - 1) {
+                    // 마지막 '/' 다음 문자부터 끝까지 추출
+                    extractedFileName = fullFilePath.substring(lastSeparatorIndex + 1);
+                }
+                // 만약 '/'가 없거나 맨 마지막 문자라면, fullFilePath 자체가 파일 이름으로 간주됩니다 (위 기본값 유지).
+
+                // 6. Post 객체가 null이 아닌지 확인 후 파일 이름 설정
+                if (this.post != null) {
+                    this.post.setFileName(extractedFileName); // <<--- 핵심!!! 추출된 순수 파일 이름을 Post 객체에 저장
+                }
+
+                // 7. 화면의 TextView에는 추출된 순수 파일 이름을 표시
+                tvFileName.setText(extractedFileName);
                 file_container.setVisibility(View.VISIBLE);
                 btnDownload.setVisibility(View.VISIBLE);
+                Log.d(TAG, "파일 표시: " + extractedFileName + " (원본 경로: " + fullFilePath + ")");
             } else {
+                // 8. 파일 정보가 없는 경우의 처리
+                if (this.post != null) {
+                    this.post.setFileName(null); // Post 객체의 파일 이름도 null로
+                }
                 file_container.setVisibility(View.GONE);
                 btnDownload.setVisibility(View.GONE);
+                Log.d(TAG, "파일 정보 없음. file_path 값: " + filePathObj);
             }
-
             // 상세 로깅: 서버로부터 받은 원시 데이터
             Log.d(TAG, "displayPostData - Raw from server: like_count=" + postData.get("like_count") +
                     ", dislike_count=" + postData.get("dislike_count") +
                     ", user_like_status=" + postData.get("user_like_status"));
 
             // 좋아요 수 설정
-            Object likeCountObj = postData.get("like_count");
+            Object likeCountObj = postData.get("likes");
             if (likeCountObj != null) {
                 try {
                     this.likeCount = ((Number) likeCountObj).intValue();
@@ -328,7 +353,7 @@ public class PostDetailActivity extends AppCompatActivity {
             tvLikeCount.setText(String.valueOf(this.likeCount));
 
             // 싫어요 수 설정
-            Object dislikeCountObj = postData.get("dislike_count");
+            Object dislikeCountObj = postData.get("dislikes");
             if (dislikeCountObj != null) {
                 try {
                     this.dislikeCount = ((Number) dislikeCountObj).intValue();
@@ -672,37 +697,51 @@ public class PostDetailActivity extends AppCompatActivity {
         });
     }
     private void downloadFile() {
-        if (post == null || !post.hasFile()) {
-            Toast.makeText(this, "다운로드할 파일이 없습니다.", Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "downloadFile() 메소드 호출됨");
+        if (post == null || post.getFileName() == null || post.getFileName().isEmpty()) {
+            Toast.makeText(this, "다운로드할 파일 정보가 없습니다.", Toast.LENGTH_SHORT).show();
+            Log.w(TAG, "다운로드 시도 실패: post 또는 fileName이 null이거나 비어있음. post: " + post + (post != null ? ", fileName: " + post.getFileName() : ""));
             return;
         }
 
         showLoading(true);
-        Toast.makeText(this, "파일 다운로드 중...", Toast.LENGTH_SHORT).show();
+        String fileNameForDownload = post.getFileName();
+        Log.i(TAG, "downloadFile - post.getFileName()으로 가져온 값: '" + fileNameForDownload + "'");
+        Toast.makeText(this, "파일 다운로드 중: " + fileNameForDownload, Toast.LENGTH_SHORT).show();
+        Log.i(TAG, "다운로드 요청 시작 - 파일 이름: " + fileNameForDownload);
 
         Call<ResponseBody> call = RetrofitClient.getApiService().downloadBoardFile(post.getFileName());
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                 showLoading(false);
+                Log.i(TAG, "downloadFile onResponse - HTTP Code: " + response.code() + ", Message: " + response.message()); // 이 로그 추가
 
                 if (response.isSuccessful() && response.body() != null) {
+                    Log.d(TAG, "다운로드 응답 성공. Content-Type: " + response.headers().get("Content-Type") + ", Content-Length: " + response.body().contentLength());
                     boolean saved = saveFile(response.body(), post.getFileName());
-                    if (saved) {
-                        Toast.makeText(PostDetailActivity.this, "파일 다운로드 완료", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(PostDetailActivity.this, "파일 저장 실패", Toast.LENGTH_SHORT).show();
-                    }
+                    // ...
                 } else {
-                    Toast.makeText(PostDetailActivity.this, "파일 다운로드 실패", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(PostDetailActivity.this, "파일 다운로드 실패 (Code: " + response.code() + ")", Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "파일 다운로드 서버 응답 실패 - Code: " + response.code() + ", Message: " + response.message());
+                    if (response.errorBody() != null) {
+                        try {
+                            String errorBodyString = response.errorBody().string();
+                            Log.e(TAG, "Error Body: " + errorBodyString);
+                        } catch (IOException e) {
+                            Log.e(TAG, "Error body parsing failed", e);
+                        }
+                    } else {
+                        Log.e(TAG, "Error Body is null.");
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<ResponseBody> call, Throwable t) {
                 showLoading(false);
-                Toast.makeText(PostDetailActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "파일 다운로드 실패: " + t.getMessage(), t);
+                Toast.makeText(PostDetailActivity.this, "네트워크 오류 (파일 다운로드): " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "파일 다운로드 네트워크 onFailure: ", t); // Throwable 전체 로깅
             }
         });
     }
@@ -710,40 +749,90 @@ public class PostDetailActivity extends AppCompatActivity {
     private boolean saveFile(ResponseBody body, String fileName) {
         try {
             File downloadsDir = getExternalFilesDir(null);
+            if (downloadsDir == null) {
+                Log.e(TAG, "saveFile - External storage not available.");
+                Toast.makeText(this, "외부 저장소를 사용할 수 없습니다.", Toast.LENGTH_SHORT).show();
+                return false;
+            }
             File file = new File(downloadsDir, fileName);
 
-            InputStream inputStream = body.byteStream();
-            OutputStream outputStream = new FileOutputStream(file);
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
-            }
-
-            outputStream.close();
-            inputStream.close();
-
-            // 파일을 열기 위한 인텐트 생성
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            Uri uri = Uri.fromFile(file);
-            intent.setDataAndType(uri, "*/*");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            InputStream inputStream = null; // finally 블록에서 닫기 위해 try 블록 밖으로 이동
+            OutputStream outputStream = null; // ""
 
             try {
-                startActivity(intent);
-            } catch (Exception e) {
-                Log.e(TAG, "파일 열기 실패: " + e.getMessage(), e);
-                Toast.makeText(this, "이 파일을 열 수 있는 앱이 없습니다.", Toast.LENGTH_SHORT).show();
-            }
+                inputStream = body.byteStream();
+                outputStream = new FileOutputStream(file);
 
-            return true;
-        } catch (IOException e) {
-            Log.e(TAG, "파일 저장 오류: " + e.getMessage(), e);
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.flush(); // 쓰기 완료 후 버퍼 비우기
+                Log.d(TAG, "파일 저장 완료: " + file.getAbsolutePath());
+
+                // 파일을 열기 위한 인텐트 생성 (FileProvider 사용)
+                Uri uri;
+                // Android N (API 24) 이상에서는 FileProvider를 사용해야 함
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    // authorities는 AndroidManifest.xml에 정의된 것과 일치해야 함
+                    // BuildConfig.APPLICATION_ID는 현재 앱의 패키지 이름을 가져옴
+                    try {
+                        // !!!!! 여기가 핵심 수정 부분 !!!!!
+                        uri = FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG, "FileProvider.getUriForFile() 실패: authorities를 확인하세요. AndroidManifest.xml에 provider가 올바르게 선언되었는지, res/xml/file_paths.xml 파일이 올바른지 확인하세요.", e);
+                        Toast.makeText(this, "파일을 열 수 없습니다 (Provider 구성 오류).", Toast.LENGTH_LONG).show();
+                        return false; // FileProvider 오류 시 진행 중단
+                    }
+                } else {
+                    // API 24 미만에서는 기존 방식 사용
+                    uri = Uri.fromFile(file);
+                }
+
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                String mimeType = getContentResolver().getType(uri); // URI로부터 MIME 타입 가져오기
+                if (mimeType == null) {
+                    // MIME 타입을 결정할 수 없는 경우, 일반적인 타입으로 설정
+                    mimeType = "*/*";
+                }
+                Log.d(TAG, "파일 열기 시도 - URI: " + uri.toString() + ", MIME Type: " + mimeType);
+
+                intent.setDataAndType(uri, mimeType);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); // 다른 앱에 URI 읽기 권한 부여
+                // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 필요에 따라 추가 (Activity 외부에서 시작 시)
+
+                try {
+                    startActivity(intent);
+                } catch (ActivityNotFoundException e) { // 구체적인 예외 타입으로 변경
+                    Log.e(TAG, "파일 열기 실패: 해당 파일을 열 수 있는 앱이 없습니다. URI: " + uri + ", MIME: " + mimeType, e);
+                    Toast.makeText(this, "이 파일을 열 수 있는 앱이 설치되어 있지 않습니다.", Toast.LENGTH_LONG).show();
+                }
+
+                return true;
+            } catch (IOException e) {
+                Log.e(TAG, "파일 쓰기/읽기 오류: " + e.getMessage(), e);
+                Toast.makeText(this, "파일 저장 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                return false;
+            } finally {
+                // 스트림을 안전하게 닫습니다.
+                try {
+                    if (outputStream != null) {
+                        outputStream.close();
+                    }
+                    if (inputStream != null) {
+                        inputStream.close();
+                    }
+                } catch (IOException e) {
+                    Log.e(TAG, "스트림 닫기 오류: " + e.getMessage(), e);
+                }
+            }
+        } catch (Exception e) { // 그 외 예외 처리 (예: FileOutputStream 생성 실패 등)
+            Log.e(TAG, "saveFile에서 예기치 않은 오류 발생: " + e.getMessage(), e);
+            Toast.makeText(this, "파일 처리 중 알 수 없는 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
             return false;
         }
     }
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // 본인 글인 경우에만 수정/삭제 메뉴 표시
