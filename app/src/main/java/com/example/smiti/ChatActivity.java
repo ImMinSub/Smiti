@@ -386,7 +386,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     return;
                 }
             }
-            Snackbar snackbar = Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT);
+            // 채팅 입력창을 앵커로 지정 (edit_message가 입력창의 ID라면)
+            View anchor = messageEditText != null ? messageEditText : rootView;
+            Snackbar snackbar = Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT).setAnchorView(anchor);
             snackbar.show();
         } catch (Exception e) {
             Log.e(TAG, "Snackbar 표시 중 오류", e);
