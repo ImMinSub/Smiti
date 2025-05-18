@@ -1,0 +1,4 @@
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+<!--  getExternalFilesDir(null) 경로를 공유 (앱 전용 외부 저장소의 루트)  -->
+<external-files-path name="my_downloaded_files" path="."/>
+</paths>
