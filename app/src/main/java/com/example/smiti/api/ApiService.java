@@ -48,17 +48,17 @@ public interface ApiService {
 
     // 그룹 검색 API - 표준 API 엔드포인트가 없으므로 기본 groups 엔드포인트를 사용
     // 클라이언트 측에서 검색어 필터링 수행
-    @GET("groups")
-    Call<ApiResponse> searchGroups(@Query("keyword") String keyword);
+        @GET("groups")
+        Call<ApiResponse> searchGroups(@Query("keyword") String keyword);
 
-    @GET("groups/smbti-scores")
-    Call<ApiResponse> getGroupsWithSmbtiScore(@Query("email") String email);
+        @GET("groups/smbti-scores")
+        Call<ApiResponse> getGroupsWithSmbtiScore(@Query("email") String email);
 
-    @POST("groups/{groupId}/users")
-    Call<ApiResponse> addUserToGroup(@Path("groupId") int groupId, @Body JoinGroupRequest request);
+        @POST("groups/{groupId}/users")
+        Call<ApiResponse> addUserToGroup(@Path("groupId") int groupId, @Body JoinGroupRequest request);
 
-    @POST("groups")
-    Call<ApiResponse> createGroup(@Body CreateGroupRequest request);
+        @POST("groups")
+        Call<ApiResponse> createGroup(@Body CreateGroupRequest request);
 
     // 스터디 시간 관련 API
     @PUT("users/me/available-times")
