@@ -355,7 +355,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 .build();
     
         // 파일 업로드 요청 생성
-        String uploadUrl = BASE_URL + "/upload"; // 수정된 업로드 API 엔드포인트
+        String uploadUrl = BASE_URL + "/uploads"; // 서버에서 사용하는 올바른 업로드 경로
 
         try {
             // 파일 타입 가져오기
@@ -430,7 +430,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     String responseData = response.body().string();
                     try {
                         JSONObject jsonResponse = new JSONObject(responseData);
-                        String fileUrl = jsonResponse.optString("url", ""); // 서버에서 반환된 파일 URL
+                        // 서버에서 file_url 또는 fileUrl 키로 URL을 반환할 수 있음
+                        String fileUrl = jsonResponse.optString("file_url", 
+                                        jsonResponse.optString("fileUrl", 
+                                        jsonResponse.optString("url", ""))); // 서버에서 반환된 파일 URL
     
                         if (!fileUrl.isEmpty()) {
                             // 파일 URL을 사용해 메시지 전송
