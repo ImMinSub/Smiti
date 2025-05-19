@@ -17,6 +17,7 @@ public class Post implements Serializable {
     private long fileSize;
     private boolean isNotice;
     private int likeCount; // 좋아요 수
+    private int dislikeCount; // 싫어요 수
     private int commentCount; // 댓글 수
     private int viewCount; // 조회수
 
@@ -30,6 +31,7 @@ public class Post implements Serializable {
     public Post() {
         // 서버에서 받은 시간 사용을 위해 로컬 시간 초기화 제거
         this.likeCount = 0;
+        this.dislikeCount = 0;
         this.commentCount = 0;
         this.viewCount = 0;
     }
@@ -44,6 +46,7 @@ public class Post implements Serializable {
         // 서버에서 받은 시간 사용을 위해 로컬 시간 초기화 제거
         this.isNotice = isNotice;
         this.likeCount = 0;
+        this.dislikeCount = 0;
         this.commentCount = 0;
         this.viewCount = 0;
     }
@@ -62,6 +65,7 @@ public class Post implements Serializable {
         this.fileSize = fileSize;
         this.isNotice = isNotice;
         this.likeCount = 0;
+        this.dislikeCount = 0;
         this.commentCount = 0;
         this.viewCount = 0;
     }
@@ -185,6 +189,14 @@ public class Post implements Serializable {
         this.likeCount = likeCount;
     }
 
+    public int getDislikeCount() {
+        return dislikeCount;
+    }
+
+    public void setDislikeCount(int dislikeCount) {
+        this.dislikeCount = dislikeCount;
+    }
+
     public int getCommentCount() {
         return commentCount;
     }
@@ -217,6 +229,7 @@ public class Post implements Serializable {
                 ", fileSize=" + fileSize +
                 ", isNotice=" + isNotice +
                 ", likeCount=" + likeCount +
+                ", dislikeCount=" + dislikeCount +
                 ", commentCount=" + commentCount +
                 ", viewCount=" + viewCount +
                 '}';
