@@ -87,8 +87,8 @@ public class ChatMessage {
             message.content = json.optString("message", "");
             message.timestamp = json.optString("timestamp", null);
             message.groupId = json.optString("group_id", "");
-            message.fileUrl = json.optString("file_url", "");
-            message.fileType = json.optString("file_type", "");
+            message.fileUrl = json.optString("file_url", json.optString("fileUrl", ""));
+            message.fileType = json.optString("file_type", json.optString("fileType", ""));
             message.localId = json.optString("localId", json.optString("localID", null));
 
             if (message.senderName == null || message.senderName.trim().isEmpty()) {
@@ -130,9 +130,13 @@ public class ChatMessage {
             if (type != null && type.equals("file")) {
                 if (fileUrl != null && !fileUrl.isEmpty()) {
                     json.put("file_url", fileUrl);
+                    // 서버에서 camelCase 형식도 지원하는 경우를 위해 추가
+                    json.put("fileUrl", fileUrl);
                 }
                 if (fileType != null && !fileType.isEmpty()) {
                     json.put("file_type", fileType);
+                    // 서버에서 camelCase 형식도 지원하는 경우를 위해 추가
+                    json.put("fileType", fileType);
                 }
             }
             return json.toString();
