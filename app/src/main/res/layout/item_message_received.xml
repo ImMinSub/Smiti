@@ -52,50 +52,105 @@
         app:layout_constraintBottom_toBottomOf="@id/text_message_body"
         app:layout_constraintStart_toEndOf="@id/text_message_body" />
 
-    <!-- 이미지 파일이 있는 경우 표시 -->
-    <ImageView
-        android:id="@+id/image_file"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:adjustViewBounds="true"
-        android:maxHeight="200dp"
-        android:scaleType="fitCenter"
-        android:visibility="gone"
-        app:layout_constraintStart_toEndOf="@id/image_profile"
-        app:layout_constraintTop_toBottomOf="@id/text_message_body" />
-    
-    <!-- PDF 파일이 있는 경우 표시 -->
-    <LinearLayout
-        android:id="@+id/pdf_file_container"
+    <!-- 이미지 파일 컨테이너 -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/image_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:background="@drawable/bg_file_container"
-        android:orientation="horizontal"
-        android:padding="8dp"
+        android:layout_marginTop="4dp"
         android:visibility="gone"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
         app:layout_constraintStart_toEndOf="@id/image_profile"
         app:layout_constraintTop_toBottomOf="@id/text_message_body">
 
-        <ImageView
-            android:id="@+id/pdf_icon"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:src="@android:drawable/ic_menu_agenda" />
-
-        <TextView
-            android:id="@+id/pdf_filename"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:layout_marginStart="8dp"
-            android:ellipsize="middle"
-            android:maxWidth="150dp"
-            android:singleLine="true"
-            android:text="문서.pdf"
-            android:textColor="#000000"
-            android:textSize="14sp" />
-    </LinearLayout>
+            android:orientation="vertical">
+
+            <!-- 이미지 뷰 -->
+            <ImageView
+                android:id="@+id/image_file"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:maxHeight="200dp"
+                android:scaleType="fitCenter" />
+
+            <!-- 이미지 다운로드 버튼 -->
+            <Button
+                android:id="@+id/image_download_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/download_button_bg"
+                android:drawableStart="@android:drawable/ic_menu_save"
+                android:paddingHorizontal="12dp"
+                android:text="다운로드"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- PDF 파일 컨테이너 -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/pdf_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="4dp"
+        android:visibility="gone"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
+        app:layout_constraintStart_toEndOf="@id/image_profile"
+        app:layout_constraintTop_toBottomOf="@id/text_message_body">
+
+        <LinearLayout
+            android:id="@+id/pdf_file_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp">
+
+                <ImageView
+                    android:id="@+id/pdf_icon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@android:drawable/ic_menu_agenda" />
+
+                <TextView
+                    android:id="@+id/pdf_filename"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="8dp"
+                    android:ellipsize="middle"
+                    android:maxWidth="150dp"
+                    android:singleLine="true"
+                    android:text="문서.pdf"
+                    android:textColor="#000000"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- PDF 다운로드 버튼 -->
+            <Button
+                android:id="@+id/pdf_download_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/download_button_bg"
+                android:drawableStart="@android:drawable/ic_menu_save"
+                android:paddingHorizontal="12dp"
+                android:text="다운로드"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout> 
