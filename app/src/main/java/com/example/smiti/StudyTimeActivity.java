@@ -49,6 +49,7 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
     private View emptyView;
     private FloatingActionButton fabAddTime;
     private ImageButton btnBack;
+    private Button btnSave;
 
     // 데이터
     private Map<String, List<TimeSlot>> availableTimeMap; // 요일별 시간 슬롯 맵
@@ -103,11 +104,17 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
         emptyView = findViewById(R.id.empty_view);
         fabAddTime = findViewById(R.id.fab_add_time);
         btnBack = findViewById(R.id.btn_back);
+        btnSave = findViewById(R.id.btn_save);
     }
 
     private void initListeners() {
         // 뒤로가기 버튼
         btnBack.setOnClickListener(v -> finish());
+        
+        // 저장 버튼
+        btnSave.setOnClickListener(v -> {
+            saveAvailableTimes();
+        });
 
         // FAB 클릭 - 시간 추가
         fabAddTime.setOnClickListener(v -> showTimePickerDialog());
@@ -363,6 +370,9 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
             requestTimes.put(dayKey, timeStrings);
         }
         
+        // 저장 중 표시
+        Toast.makeText(StudyTimeActivity.this, "저장 중...", Toast.LENGTH_SHORT).show();
+        
         // API 요청 생성
         AvailableTimesRequest request = new AvailableTimesRequest(userEmail, requestTimes);
         
@@ -374,6 +384,8 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
                     ApiResponse apiResponse = response.body();
                     
                     if (apiResponse.getStatus().equals("success")) {
+                        // 스터디 시간 정보를 SharedPreferences에 저장
+                        saveStudyTimesToLocal(requestTimes);
                         Toast.makeText(StudyTimeActivity.this, "스터디 가능 시간이 저장되었습니다", Toast.LENGTH_SHORT).show();
                         finish();
                     } else {
@@ -392,5 +404,26 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
                 Toast.makeText(StudyTimeActivity.this, "서버 연결에 실패했습니다", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+    
+    // 스터디 시간 정보를 로컬에 저장
+    private void saveStudyTimesToLocal(Map<String, List<String>> studyTimes) {
+        SharedPreferences prefs = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        
+        // 요일별 스터디 시간 정보 저장
+        for (String dayKey : DAY_KEYS) {
+            List<String> times = studyTimes.get(dayKey);
+            if (times != null && !times.isEmpty()) {
+                // 쉼표로 구분된 문자열로 변환 (예: "09:00~10:00,14:00~16:00")
+                editor.putString("study_time_" + dayKey, String.join(",", times));
+            } else {
+                editor.putString("study_time_" + dayKey, "");
+            }
+        }
+        
+        // 스터디 시간 설정 여부 플래그 저장
+        editor.putBoolean("has_study_times", true);
+        editor.apply();
     }
 } 
