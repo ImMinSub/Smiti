@@ -18,6 +18,7 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatButton;
 
@@ -38,6 +39,12 @@ import retrofit2.Response;
 
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import retrofit2.Retrofit;
+import retrofit2.http.Body;
+import retrofit2.http.POST;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class GroupSearchActivity extends AppCompatActivity {
 
@@ -148,7 +155,8 @@ public class GroupSearchActivity extends AppCompatActivity {
             // 현재 검색어 가져오기
             String keyword = searchView.getText().toString().trim();
             if (!keyword.isEmpty()) {
-                createAiGroup(keyword);
+                // 다이얼로그를 보여주어 사용자가 직접 그룹명과 설명을 입력할 수 있게 함
+                showCreateGroupDialog(keyword);
             } else {
                 Toast.makeText(GroupSearchActivity.this, "검색어를 입력해주세요.", Toast.LENGTH_SHORT).show();
             }
@@ -236,8 +244,8 @@ public class GroupSearchActivity extends AppCompatActivity {
             // 검색 결과 없음 메시지 표시
             tvEmptyMessage.setText("검색된 결과가 없습니다.");
             
-            // AI 모드일 때만 AI 그룹 생성 버튼 표시
-            if (isAiModeEnabled) {
+            // 일반 모드일 때만 그룹 생성 버튼 표시 (AI 모드에서는 표시하지 않음)
+            if (!isAiModeEnabled) {
                 btnCreateGroup.setVisibility(View.VISIBLE);
             } else {
                 btnCreateGroup.setVisibility(View.GONE);
@@ -318,15 +326,24 @@ public class GroupSearchActivity extends AppCompatActivity {
         // SMBTI 궁합 점수를 포함한 그룹 목록 API 호출
         Call<ApiResponse> call;
         if (isAiModeEnabled) {
-            // AI 모드에서도 일반 검색과 같은 방식으로 처리
+            // AI 모드에서는 groups/recommend API 사용
+            String userSmbti = sharedPreferences.getString("smbti", "");
+            String userName = sharedPreferences.getString("name", "");
+            FindGroupRequest request = new FindGroupRequest(userEmail, userSmbti, userName, keyword);
+            
+            // AI 모드일 때 직접 배열 처리 방식으로 전환
             call = apiService.getGroupsWithSmbtiScore(userEmail);
-            // AI 모드에서도 동일한 메시지 처리
-            Log.d(TAG, "AI 모드에서 일반 검색 API 사용: " + keyword);
+            Log.d(TAG, "AI 모드에서 AI 추천 API 사용: " + keyword);
+            
+            // 별도로 AI 추천 API 직접 호출 처리
+            directAiRecommend(request);
+            return;
         } else {
             // 일반 검색 모드
             call = apiService.getGroupsWithSmbtiScore(userEmail);
         }
         
+        // 일반 모드 호출 처리 (기존 코드)
         call.enqueue(new Callback<ApiResponse>() {
             @Override
             public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
@@ -341,8 +358,9 @@ public class GroupSearchActivity extends AppCompatActivity {
                     if (allGroupsFromServer != null) {
                         Log.d(TAG, "Received " + allGroupsFromServer.size() + " total groups with SMBTI scores");
                         
-                        // 키워드로 필터링 (일반 모드에서만 클라이언트 측 필터링)
+                        // 검색 결과 처리
                         if (!isAiModeEnabled) {
+                            // 일반 모드에서는 클라이언트 측 필터링
                             for (Group group : allGroupsFromServer) {
                                 String groupName = group.getName();
                                 if (groupName == null) {
@@ -369,31 +387,18 @@ public class GroupSearchActivity extends AppCompatActivity {
                                 }
                             }
                         } else {
-                            // AI 모드에서도 검색어로 필터링 처리
+                            // AI 모드에서는 서버가 이미 추천한 그룹을 모두 추가
                             for (Group group : allGroupsFromServer) {
                                 String groupName = group.getName();
                                 if (groupName == null) {
-                                    // API 응답에서 그룹 이름이 누락된 경우 스킵
                                     continue;
                                 }
                                 
-                                // 안전하게 필드 검사 - description이 null일 수 있음
-                                boolean nameMatches = groupName.toLowerCase().contains(keyword.toLowerCase());
-                                boolean descMatches = false;
-                                
-                                String description = group.getDescription();
-                                if (description != null) {
-                                    descMatches = description.toLowerCase().contains(keyword.toLowerCase());
-                                }
-                                
-                                if (nameMatches || descMatches) {
-                                    // 검색어가 포함된 그룹만 추가
-                                    allGroups.add(group);
-                                    double score = group.getMbtiScore();
-                                    int roundedScore = (int) Math.round(score);
-                                    dataList.add(groupName + " [궁합: " + roundedScore + "점]");
-                                    Log.d(TAG, "그룹: " + groupName + ", SMBTI 점수: " + score);
-                                }
+                                allGroups.add(group);
+                                double score = group.getMbtiScore();
+                                int roundedScore = (int) Math.round(score);
+                                dataList.add(groupName + " [AI 추천: " + roundedScore + "점]");
+                                Log.d(TAG, "AI 추천 그룹: " + groupName + ", 점수: " + score);
                             }
                         }
                         
@@ -412,7 +417,11 @@ public class GroupSearchActivity extends AppCompatActivity {
                             if (groupName != null) {
                                 double score = group.getMbtiScore();
                                 int roundedScore = (int) Math.round(score);
-                                dataList.add(groupName + " [궁합: " + roundedScore + "점]");
+                                if (isAiModeEnabled) {
+                                    dataList.add(groupName + " [AI 추천: " + roundedScore + "점]");
+                                } else {
+                                    dataList.add(groupName + " [궁합: " + roundedScore + "점]");
+                                }
                             }
                         }
                         
@@ -502,14 +511,62 @@ public class GroupSearchActivity extends AppCompatActivity {
         }
     }
 
-    // AI를 이용한 그룹 자동 생성 메서드
-    private void createAiGroup(String keyword) {
+    // 그룹 생성 다이얼로그를 표시하는 메서드
+    private void showCreateGroupDialog(String keyword) {
+        // 다이얼로그용 레이아웃 생성
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 30);
+
+        // 그룹명 입력창
+        final EditText groupNameInput = new EditText(this);
+        groupNameInput.setHint("그룹명");
+        groupNameInput.setText(keyword + " 그룹"); // 기본값으로 검색어 + 그룹 설정
+        layout.addView(groupNameInput);
+
+        // 여백 추가
+        TextView space = new TextView(this);
+        space.setHeight(30);
+        layout.addView(space);
+
+        // 그룹 설명 입력창
+        final EditText descriptionInput = new EditText(this);
+        descriptionInput.setHint("그룹 설명");
+        descriptionInput.setText(keyword + "에 관련된 그룹입니다."); // 기본값 설정
+        layout.addView(descriptionInput);
+
+        // AlertDialog 생성
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("그룹 생성");
+        builder.setView(layout);
+        
+        // 취소 버튼
+        builder.setNegativeButton("취소", (dialog, which) -> dialog.dismiss());
+        
+        // 생성 버튼
+        builder.setPositiveButton("생성", (dialog, which) -> {
+            String groupName = groupNameInput.getText().toString().trim();
+            String description = descriptionInput.getText().toString().trim();
+            
+            if (groupName.isEmpty()) {
+                Toast.makeText(this, "그룹명을 입력해주세요.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            // 직접 입력한 정보로 그룹 생성
+            createCustomGroup(groupName, description);
+        });
+        
+        builder.show();
+    }
+    
+    // 사용자가 입력한 정보로 그룹을 생성하는 메서드
+    private void createCustomGroup(String groupName, String description) {
         showLoading(true);
         
         // 사용자 정보 가져오기
         SharedPreferences sharedPreferences = getSharedPreferences("LoginPrefs", MODE_PRIVATE);
         String userEmail = sharedPreferences.getString("email", "");
-        String userName = sharedPreferences.getString("name", "사용자");
         
         if (userEmail.isEmpty()) {
             showLoading(false);
@@ -519,11 +576,11 @@ public class GroupSearchActivity extends AppCompatActivity {
         
         // 그룹 생성 요청 객체 생성
         CreateGroupRequest request = new CreateGroupRequest();
-        request.setGroup_name(keyword + " 그룹");
-        request.setDescription(keyword + "에 관련된 AI가 자동으로 생성한 그룹입니다.");
+        request.setGroup_name(groupName);
+        request.setDescription(description);
         request.setEmail(userEmail);
-        request.setTopics(keyword);
-        request.setUseAi(true); // AI 사용 표시
+        request.setTopics(searchView.getText().toString().trim());
+        request.setUseAi(false); // AI 사용하지 않음
         
         // API 호출
         Call<ApiResponse> call = apiService.createGroup(request);
@@ -537,10 +594,10 @@ public class GroupSearchActivity extends AppCompatActivity {
                     
                     // 그룹 생성 성공 메시지 표시
                     Toast.makeText(GroupSearchActivity.this, 
-                        "AI 그룹이 성공적으로 생성되었습니다!", Toast.LENGTH_LONG).show();
+                        "그룹이 성공적으로 생성되었습니다!", Toast.LENGTH_LONG).show();
                     
                     // 그룹 검색 결과 갱신
-                    searchGroups(keyword);
+                    searchGroups(searchView.getText().toString().trim());
                 } else {
                     int errorCode = response.code();
                     String errorMessage = "그룹 생성에 실패했습니다: " + errorCode;
@@ -563,10 +620,187 @@ public class GroupSearchActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<ApiResponse> call, Throwable t) {
                 showLoading(false);
-                Log.e(TAG, "Network error creating AI group: " + t.getMessage(), t);
+                Log.e(TAG, "Network error creating group: " + t.getMessage(), t);
                 Toast.makeText(GroupSearchActivity.this, 
                     "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    // AI 추천 API를 별도 처리하는 메서드
+    private void directAiRecommend(FindGroupRequest request) {
+        // 이 메서드는 배열 응답을 직접 처리합니다
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .build();
+                
+        // GSON 설정 - 배열 응답을 처리하기 위한 특별 설정
+        Gson gson = new GsonBuilder()
+                .setLenient()
+                .create();
+                
+        // recommendGroup 엔드포인트에 대한 별도 Retrofit 인스턴스 생성
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("http://202.31.246.51:80/")
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create(gson))
+                .build();
+        
+        // Group 배열을 직접 반환하는 임시 인터페이스 생성
+        RecommendService recommendService = retrofit.create(RecommendService.class);
+        
+        // API 호출
+        recommendService.recommendGroups(request).enqueue(new Callback<List<Group>>() {
+            @Override
+            public void onResponse(Call<List<Group>> call, Response<List<Group>> response) {
+                showLoading(false);
+                allGroups.clear();
+                dataList.clear();
+                
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Group> recommendedGroups = response.body();
+                    
+                    if (recommendedGroups != null && !recommendedGroups.isEmpty()) {
+                        // 추천 그룹 처리
+                        allGroups.addAll(recommendedGroups);
+                        
+                        // UI 업데이트
+                        for (Group group : allGroups) {
+                            String groupName = group.getName();
+                            if (groupName != null) {
+                                double score = group.getMbtiScore();
+                                int roundedScore = (int) Math.round(score);
+                                dataList.add(groupName + " [AI 추천: " + roundedScore + "점]");
+                            }
+                        }
+                        
+                        // MBTI 점수 기준 내림차순 정렬
+                        java.util.Collections.sort(allGroups, (g1, g2) -> {
+                            double score1 = g1.getMbtiScore();
+                            double score2 = g2.getMbtiScore();
+                            return Double.compare(score2, score1);
+                        });
+                        
+                        // 정렬된 그룹에 맞게 dataList 재구성
+                        dataList.clear();
+                        for (Group group : allGroups) {
+                            String groupName = group.getName();
+                            if (groupName != null) {
+                                double score = group.getMbtiScore();
+                                int roundedScore = (int) Math.round(score);
+                                dataList.add(groupName + " [AI 추천: " + roundedScore + "점]");
+                            }
+                        }
+                    }
+                    
+                    adapter.notifyDataSetChanged();
+                    
+                    // 결과가 없을 경우
+                    if (dataList.isEmpty()) {
+                        showEmptyResult(true);
+                    }
+                } else {
+                    Log.e(TAG, "AI 추천 API 오류: " + response.code());
+                    Toast.makeText(GroupSearchActivity.this, "AI 추천 결과를 가져오지 못했습니다.", Toast.LENGTH_SHORT).show();
+                    showEmptyResult(true);
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<List<Group>> call, Throwable t) {
+                showLoading(false);
+                Log.e(TAG, "Network request failed: " + t.getMessage(), t);
+                
+                if (retryCount < MAX_RETRY_COUNT) {
+                    retryCount++;
+                    Log.d(TAG, "재시도 " + retryCount + "/" + MAX_RETRY_COUNT);
+                    
+                    // 일반 검색으로 폴백
+                    Toast.makeText(GroupSearchActivity.this, "AI 추천 서비스 접속 실패. 일반 검색을 사용합니다.", Toast.LENGTH_SHORT).show();
+                    isAiModeEnabled = false;
+                    updateAiButtonState();
+                    
+                    // 일반 검색 실행
+                    String keyword = request.getUser_request();
+                    Call<ApiResponse> fallbackCall = apiService.getGroupsWithSmbtiScore(request.getEmail());
+                    fallbackCall.enqueue(new Callback<ApiResponse>() {
+                        @Override
+                        public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+                            showLoading(false);
+                            allGroups.clear();
+                            dataList.clear();
+
+                            if (response.isSuccessful() && response.body() != null) {
+                                ApiResponse apiResponse = response.body();
+                                List<Group> allGroupsFromServer = apiResponse.getGroups();
+                                
+                                if (allGroupsFromServer != null) {
+                                    for (Group group : allGroupsFromServer) {
+                                        String groupName = group.getName();
+                                        if (groupName == null) continue;
+                                        
+                                        boolean nameMatches = groupName.toLowerCase().contains(keyword.toLowerCase());
+                                        boolean descMatches = false;
+                                        
+                                        String description = group.getDescription();
+                                        if (description != null) {
+                                            descMatches = description.toLowerCase().contains(keyword.toLowerCase());
+                                        }
+                                        
+                                        if (nameMatches || descMatches) {
+                                            allGroups.add(group);
+                                            double score = group.getMbtiScore();
+                                            int roundedScore = (int) Math.round(score);
+                                            dataList.add(groupName + " [궁합: " + roundedScore + "점]");
+                                        }
+                                    }
+                                    
+                                    // 정렬
+                                    java.util.Collections.sort(allGroups, (g1, g2) -> 
+                                        Double.compare(g2.getMbtiScore(), g1.getMbtiScore()));
+                                    
+                                    // 데이터 업데이트
+                                    dataList.clear();
+                                    for (Group group : allGroups) {
+                                        String groupName = group.getName();
+                                        if (groupName != null) {
+                                            double score = group.getMbtiScore();
+                                            int roundedScore = (int) Math.round(score);
+                                            dataList.add(groupName + " [궁합: " + roundedScore + "점]");
+                                        }
+                                    }
+                                }
+                                
+                                adapter.notifyDataSetChanged();
+                                
+                                if (dataList.isEmpty()) {
+                                    showEmptyResult(true);
+                                }
+                            } else {
+                                showEmptyResult(true);
+                            }
+                        }
+                        
+                        @Override
+                        public void onFailure(Call<ApiResponse> call, Throwable t) {
+                            showLoading(false);
+                            showEmptyResult(true);
+                        }
+                    });
+                } else {
+                    // 최대 재시도 횟수 초과
+                    Toast.makeText(GroupSearchActivity.this, "네트워크 연결 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                    showEmptyResult(true);
+                }
+            }
+        });
+    }
+    
+    // 배열 응답을 처리하기 위한 임시 인터페이스
+    private interface RecommendService {
+        @POST("groups/recommend")
+        Call<List<Group>> recommendGroups(@Body FindGroupRequest request);
     }
 } 
