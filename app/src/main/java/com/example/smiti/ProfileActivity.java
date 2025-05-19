@@ -20,6 +20,13 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import org.json.JSONObject;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+import com.example.smiti.api.ApiResponse;
+import com.example.smiti.api.RetrofitClient;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -31,6 +38,19 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+import com.example.smiti.api.ApiResponse;
+import com.example.smiti.api.RetrofitClient;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 
 public class ProfileActivity extends AppCompatActivity {
     private static final String TAG = "ProfileActivity";
@@ -39,9 +59,15 @@ public class ProfileActivity extends AppCompatActivity {
 
     private ImageButton albumButton;
     private TextView nameTextView, mbtiTextView, groupCountTextView;
+    private TextView studyTimeTextView;
     private Button activityLogButton, groupSettingButton, accountManagementButton;
     private Button blockedAccountsButton, logoutButton;
     private ImageButton notificationButton, settingsButton;
+
+    // 요일 한글 이름 정의
+    private final String[] DAYS = {"월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"};
+    // 영어로 된 요일 (API 요청용)
+    private final String[] DAY_KEYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +90,7 @@ public class ProfileActivity extends AppCompatActivity {
         nameTextView = findViewById(R.id.tv_name);
         mbtiTextView = findViewById(R.id.tv_mbti);
         groupCountTextView = findViewById(R.id.tv_group_count);
+        studyTimeTextView = findViewById(R.id.tv_study_time);
 
         // 하단 메뉴 버튼
         activityLogButton = findViewById(R.id.btn_activity_log);
@@ -122,6 +149,7 @@ public class ProfileActivity extends AppCompatActivity {
         // 먼저 저장된 데이터로 UI 초기화
         loadUserDataFromLocal();
         loadProfileImageFromFilePath();
+        loadStudyTimesFromLocal();
         
         // 서버에서 최신 데이터 가져오기
         SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
@@ -130,6 +158,7 @@ public class ProfileActivity extends AppCompatActivity {
         if (email != null && !email.isEmpty()) {
             fetchUserDataFromServer(email);
             fetchUserGroupsFromServer(email);  // 그룹 정보도 가져오기
+            fetchStudyTimesFromServer(email);  // 서버에서 스터디 가능 시간 가져오기
         } else {
             showToast("사용자 정보를 불러올 수 없습니다");
         }
@@ -507,5 +536,106 @@ public class ProfileActivity extends AppCompatActivity {
             Log.e(TAG, "그룹 UI 업데이트 오류: " + e.getMessage(), e);
             showToast("그룹 UI 업데이트 실패");
         }
+    }
+
+    // 로컬에 저장된 스터디 가능 시간 로드
+    private void loadStudyTimesFromLocal() {
+        SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+        boolean hasStudyTimes = sharedPreferences.getBoolean("has_study_times", false);
+        
+        if (hasStudyTimes) {
+            // 스터디 시간이 있는 요일 확인
+            StringBuilder studyTimeInfo = new StringBuilder("스터디 가능 시간:\n");
+            boolean hasAnyTimes = false;
+            
+            for (int i = 0; i < DAY_KEYS.length; i++) {
+                String dayKey = DAY_KEYS[i];
+                String dayName = DAYS[i];
+                String timeString = sharedPreferences.getString("study_time_" + dayKey, "");
+                
+                if (!timeString.isEmpty()) {
+                    studyTimeInfo.append(dayName).append(": ").append(formatTimeString(timeString)).append("\n");
+                    hasAnyTimes = true;
+                }
+            }
+            
+            if (hasAnyTimes) {
+                studyTimeTextView.setVisibility(View.VISIBLE);
+                studyTimeTextView.setText(studyTimeInfo.toString());
+            } else {
+                studyTimeTextView.setVisibility(View.GONE);
+            }
+        } else {
+            // 저장된 스터디 시간이 없음
+            studyTimeTextView.setVisibility(View.GONE);
+        }
+    }
+    
+    // 서버에서 스터디 가능 시간 가져오기
+    private void fetchStudyTimesFromServer(String email) {
+        RetrofitClient.getApiService().getAvailableTimes(email).enqueue(new Callback<ApiResponse>() {
+            @Override
+            public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse apiResponse = response.body();
+                    
+                    try {
+                        // 응답 데이터에서 available_times 필드 찾기
+                        Object availableTimesObj = null;
+                        
+                        if (apiResponse.getData() != null) {
+                            Map<String, Object> data = (Map<String, Object>) apiResponse.getData();
+                            if (data.containsKey("available_times")) {
+                                availableTimesObj = data.get("available_times");
+                            }
+                        }
+                        
+                        if (availableTimesObj instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, List<String>> availableTimes = (Map<String, List<String>>) availableTimesObj;
+                            
+                            // 서버에서 받은 스터디 시간을 로컬에 저장
+                            saveStudyTimesToLocal(availableTimes);
+                            
+                            // UI 업데이트
+                            loadStudyTimesFromLocal();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "스터디 시간 파싱 오류: " + e.getMessage());
+                    }
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<ApiResponse> call, Throwable t) {
+                Log.e(TAG, "스터디 시간 조회 실패: " + t.getMessage());
+            }
+        });
+    }
+    
+    // 스터디 시간 정보를 로컬에 저장
+    private void saveStudyTimesToLocal(Map<String, List<String>> studyTimes) {
+        SharedPreferences prefs = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        
+        // 요일별 스터디 시간 정보 저장
+        for (String dayKey : DAY_KEYS) {
+            List<String> times = studyTimes.get(dayKey);
+            if (times != null && !times.isEmpty()) {
+                // 쉼표로 구분된 문자열로 변환 (예: "09:00~10:00,14:00~16:00")
+                editor.putString("study_time_" + dayKey, String.join(",", times));
+            } else {
+                editor.putString("study_time_" + dayKey, "");
+            }
+        }
+        
+        // 스터디 시간 설정 여부 플래그 저장
+        editor.putBoolean("has_study_times", true);
+        editor.apply();
+    }
+    
+    // 시간 문자열 포맷팅 (09:00~10:00,14:00~16:00 -> 09:00~10:00, 14:00~16:00)
+    private String formatTimeString(String timeString) {
+        return timeString.replace(",", ", ");
     }
 } 
