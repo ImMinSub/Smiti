@@ -1,6 +1,8 @@
 package com.example.smiti;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,6 +10,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -123,13 +126,17 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     // 보낸 메시지 ViewHolder 클래스
     private class SentMessageHolder extends RecyclerView.ViewHolder {
         TextView messageText, timeText;
-        ImageView fileImageView; // 파일 이미지 뷰 (추가될 수 있음)
+        ImageView fileImageView;
+        LinearLayout pdfContainer;
+        TextView pdfFilename;
 
         SentMessageHolder(View itemView) {
             super(itemView);
             messageText = itemView.findViewById(R.id.text_message_body);
             timeText = itemView.findViewById(R.id.text_message_time);
-            fileImageView = itemView.findViewById(R.id.image_file); // 레이아웃에 ID가 있는지 확인 필요
+            fileImageView = itemView.findViewById(R.id.image_file);
+            pdfContainer = itemView.findViewById(R.id.pdf_file_container);
+            pdfFilename = itemView.findViewById(R.id.pdf_filename);
         }
 
         void bind(Message message) {
@@ -146,11 +153,46 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             }
 
             // 파일 표시 로직
-            if (message.hasFile() && "image".equals(message.getFileType()) && fileImageView != null) {
+            if (message.hasFile()) {
+                String fileType = message.getFileType();
+                String fileUrl = message.getFileUrl();
+                
+                if ("image".equals(fileType) && fileImageView != null) {
+                    // 이미지 파일 표시
                 fileImageView.setVisibility(View.VISIBLE);
-                Glide.with(context).load(message.getFileUrl()).into(fileImageView);
-            } else if (fileImageView != null) {
+                    if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
+                    
+                    // Glide로 이미지 로드
+                    Glide.with(context).load(fileUrl).into(fileImageView);
+                    
+                    // 이미지 클릭 이벤트 설정
+                    fileImageView.setOnClickListener(v -> {
+                        openFileUrl(fileUrl, fileType);
+                    });
+                } 
+                else if ("pdf".equals(fileType) && pdfContainer != null) {
+                    // PDF 파일 표시
+                    fileImageView.setVisibility(View.GONE);
+                    pdfContainer.setVisibility(View.VISIBLE);
+                    
+                    // 파일명 추출 및 표시
+                    String filename = extractFilenameFromUrl(fileUrl);
+                    pdfFilename.setText(filename);
+                    
+                    // PDF 컨테이너 클릭 이벤트 설정
+                    pdfContainer.setOnClickListener(v -> {
+                        openFileUrl(fileUrl, fileType);
+                    });
+                }
+                else {
+                    // 지원하지 않는 파일 타입
+                    fileImageView.setVisibility(View.GONE);
+                    if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
+                }
+            } else {
+                // 파일 없음
                 fileImageView.setVisibility(View.GONE);
+                if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
             }
         }
     }
@@ -158,15 +200,19 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     // 받은 메시지 ViewHolder 클래스
     private class ReceivedMessageHolder extends RecyclerView.ViewHolder {
         TextView nameText, messageText, timeText;
-        ImageView profileImage, fileImageView; // 프로필 이미지, 파일 이미지 뷰
+        ImageView profileImage, fileImageView;
+        LinearLayout pdfContainer;
+        TextView pdfFilename;
 
         ReceivedMessageHolder(View itemView) {
             super(itemView);
             nameText = itemView.findViewById(R.id.text_name);
             messageText = itemView.findViewById(R.id.text_message_body);
             timeText = itemView.findViewById(R.id.text_message_time);
-            profileImage = itemView.findViewById(R.id.image_profile); // 레이아웃에 ID가 있는지 확인 필요
-            fileImageView = itemView.findViewById(R.id.image_file); // 레이아웃에 ID가 있는지 확인 필요
+            profileImage = itemView.findViewById(R.id.image_profile);
+            fileImageView = itemView.findViewById(R.id.image_file);
+            pdfContainer = itemView.findViewById(R.id.pdf_file_container);
+            pdfFilename = itemView.findViewById(R.id.pdf_filename);
         }
 
         void bind(Message message) {
@@ -191,11 +237,46 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             }
 
             // 파일 표시 로직
-            if (message.hasFile() && "image".equals(message.getFileType()) && fileImageView != null) {
+            if (message.hasFile()) {
+                String fileType = message.getFileType();
+                String fileUrl = message.getFileUrl();
+                
+                if ("image".equals(fileType) && fileImageView != null) {
+                    // 이미지 파일 표시
                 fileImageView.setVisibility(View.VISIBLE);
-                Glide.with(context).load(message.getFileUrl()).into(fileImageView);
-            } else if (fileImageView != null) {
+                    if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
+                    
+                    // Glide로 이미지 로드
+                    Glide.with(context).load(fileUrl).into(fileImageView);
+                    
+                    // 이미지 클릭 이벤트 설정
+                    fileImageView.setOnClickListener(v -> {
+                        openFileUrl(fileUrl, fileType);
+                    });
+                } 
+                else if ("pdf".equals(fileType) && pdfContainer != null) {
+                    // PDF 파일 표시
+                    fileImageView.setVisibility(View.GONE);
+                    pdfContainer.setVisibility(View.VISIBLE);
+                    
+                    // 파일명 추출 및 표시
+                    String filename = extractFilenameFromUrl(fileUrl);
+                    pdfFilename.setText(filename);
+                    
+                    // PDF 컨테이너 클릭 이벤트 설정
+                    pdfContainer.setOnClickListener(v -> {
+                        openFileUrl(fileUrl, fileType);
+                    });
+                }
+                else {
+                    // 지원하지 않는 파일 타입
+                    fileImageView.setVisibility(View.GONE);
+                    if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
+                }
+            } else {
+                // 파일 없음
                 fileImageView.setVisibility(View.GONE);
+                if (pdfContainer != null) pdfContainer.setVisibility(View.GONE);
             }
 
             // 프로필 이미지 설정 (필요시 Glide 등 사용)
@@ -263,6 +344,54 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             } else {
                 timeText.setText(""); // 타임스탬프 파싱 실패 시 시간 비우기
             }
+        }
+    }
+
+    // 파일 URL에서 파일명 추출
+    private String extractFilenameFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return "file.pdf";
+        }
+        
+        try {
+            // URL에서 마지막 '/' 이후의 문자열을 파일명으로 처리
+            int lastSlashIndex = url.lastIndexOf('/');
+            if (lastSlashIndex != -1 && lastSlashIndex < url.length() - 1) {
+                return url.substring(lastSlashIndex + 1);
+            }
+            
+            // 쿼리 파라미터 제거
+            int queryIndex = url.indexOf('?');
+            if (queryIndex != -1) {
+                return url.substring(lastSlashIndex + 1, queryIndex);
+            }
+            
+            return url;
+        } catch (Exception e) {
+            Log.e(TAG, "파일명 추출 오류", e);
+            return "file.pdf";
+        }
+    }
+    
+    // 파일 URL 열기
+    private void openFileUrl(String fileUrl, String fileType) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri uri = Uri.parse(fileUrl);
+            
+            if ("pdf".equals(fileType)) {
+                intent.setDataAndType(uri, "application/pdf");
+            } else if ("image".equals(fileType)) {
+                intent.setDataAndType(uri, "image/*");
+            } else {
+                intent.setData(uri);
+            }
+            
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "파일 열기 오류", e);
+            Toast.makeText(context, "파일을 열 수 없습니다.", Toast.LENGTH_SHORT).show();
         }
     }
 }
