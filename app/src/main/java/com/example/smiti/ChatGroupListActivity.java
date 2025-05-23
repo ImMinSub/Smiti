@@ -19,7 +19,12 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.smiti.api.ApiResponse;
 import com.example.smiti.api.ApiService;
 import com.example.smiti.api.RetrofitClient;
+import com.example.smiti.model.Group;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -133,7 +138,8 @@ public class ChatGroupListActivity extends AppCompatActivity {
             public void onResponse(retrofit2.Call<ApiResponse> call, retrofit2.Response<ApiResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     try {
-                        parseAllGroupsResponse(response.body());
+                        // HTTP 응답 본문을 직접 파싱
+                        parseAllGroupsFromHttpResponse(response);
                         Log.d(TAG, "그룹 이름-ID 매핑 완료. 매핑된 그룹 수: " + groupNameToIdMap.size());
                         
                         // 매핑이 완료된 후 사용자 그룹 목록 가져오기
@@ -161,59 +167,93 @@ public class ChatGroupListActivity extends AppCompatActivity {
     }
 
     /**
-     * 전체 그룹 목록 응답을 파싱하여 그룹 이름-ID 매핑을 생성
+     * HTTP 응답에서 직접 그룹 정보를 파싱하여 매핑 생성
      */
-    private void parseAllGroupsResponse(ApiResponse response) {
+    private void parseAllGroupsFromHttpResponse(retrofit2.Response<ApiResponse> response) {
         try {
-            Object data = response.getData();
-            JSONArray groupsArray = null;
-
-            if (data instanceof List) {
-                // List를 JSONArray로 변환
-                List<?> dataList = (List<?>) data;
-                groupsArray = new JSONArray();
-                for (Object item : dataList) {
-                    if (item instanceof Map) {
-                        groupsArray.put(new JSONObject((Map<?, ?>) item));
-                    }
-                }
-            } else if (data instanceof String) {
-                // JSON 문자열인 경우 파싱
-                String jsonString = (String) data;
-                if (jsonString.trim().startsWith("[")) {
-                    groupsArray = new JSONArray(jsonString);
-                } else {
-                    JSONObject jsonObject = new JSONObject(jsonString);
-                    if (jsonObject.has("groups")) {
-                        groupsArray = jsonObject.getJSONArray("groups");
-                    }
-                }
-            }
-
-            if (groupsArray != null) {
-                for (int i = 0; i < groupsArray.length(); i++) {
-                    JSONObject groupObject = groupsArray.getJSONObject(i);
+            // HTTP 응답 본문을 직접 String으로 가져오기 위해 OkHttp를 사용
+            okhttp3.ResponseBody responseBody = response.raw().body();
+            if (responseBody != null) {
+                String jsonString = responseBody.string();
+                Log.d(TAG, "HTTP 응답 본문: " + jsonString);
+                
+                // JSON 파싱
+                JSONObject jsonObject = new JSONObject(jsonString);
+                if (jsonObject.has("groups")) {
+                    JSONArray groupsArray = jsonObject.getJSONArray("groups");
+                    Log.d(TAG, "groups 배열 발견. 크기: " + groupsArray.length());
                     
-                    String groupName = groupObject.optString("name", "");
-                    int groupId = groupObject.optInt("id", -1);
-                    
-                    // 대체 키도 확인
-                    if (groupName.isEmpty() && groupObject.has("group_name")) {
-                        groupName = groupObject.optString("group_name", "");
-                    }
-                    if (groupId == -1 && groupObject.has("group_id")) {
-                        groupId = groupObject.optInt("group_id", -1);
-                    }
-
-                    if (!groupName.isEmpty() && groupId != -1) {
-                        groupNameToIdMap.put(groupName, groupId);
-                        Log.d(TAG, "그룹 매핑: " + groupName + " -> " + groupId);
+                    for (int i = 0; i < groupsArray.length(); i++) {
+                        JSONObject groupObject = groupsArray.getJSONObject(i);
+                        
+                        String groupName = groupObject.optString("name", "");
+                        int groupId = groupObject.optInt("id", -1);
+                        
+                        if (!groupName.isEmpty() && groupId != -1) {
+                            groupNameToIdMap.put(groupName, groupId);
+                            Log.d(TAG, "그룹 매핑: " + groupName + " -> " + groupId);
+                        }
                     }
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "전체 그룹 목록 파싱 중 오류", e);
+            Log.e(TAG, "HTTP 응답 파싱 중 오류", e);
+            
+            // 대안: OkHttp로 직접 요청
+            fetchAllGroupsWithOkHttp();
         }
+    }
+
+    /**
+     * OkHttp로 직접 전체 그룹 목록을 가져와서 매핑 생성
+     */
+    private void fetchAllGroupsWithOkHttp() {
+        OkHttpClient client = new OkHttpClient();
+        String url = BASE_URL + "/groups";
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "OkHttp로 전체 그룹 목록 가져오기 실패", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "OkHttp 전체 그룹 목록 응답: " + responseData);
+                        
+                        JSONObject jsonObject = new JSONObject(responseData);
+                        if (jsonObject.has("groups")) {
+                            JSONArray groupsArray = jsonObject.getJSONArray("groups");
+                            Log.d(TAG, "OkHttp groups 배열 발견. 크기: " + groupsArray.length());
+                            
+                            for (int i = 0; i < groupsArray.length(); i++) {
+                                JSONObject groupObject = groupsArray.getJSONObject(i);
+                                
+                                String groupName = groupObject.optString("name", "");
+                                int groupId = groupObject.optInt("id", -1);
+                                
+                                if (!groupName.isEmpty() && groupId != -1) {
+                                    groupNameToIdMap.put(groupName, groupId);
+                                    Log.d(TAG, "OkHttp 그룹 매핑: " + groupName + " -> " + groupId);
+                                }
+                            }
+                        }
+                        
+                        Log.d(TAG, "OkHttp 그룹 이름-ID 매핑 완료. 매핑된 그룹 수: " + groupNameToIdMap.size());
+                    } catch (JSONException e) {
+                        Log.e(TAG, "OkHttp 응답 파싱 오류", e);
+                    }
+                }
+            }
+        });
     }
     
     // 문자열 배열을 그룹으로 파싱하는 메소드 (my_groups 형식의 응답용)
@@ -231,7 +271,7 @@ public class ChatGroupListActivity extends AppCompatActivity {
             ChatGroup group = new ChatGroup(id, groupName, description, memberCount);
             groups.add(group);
             
-            Log.d(TAG, "그룹 추가: " + groupName + " (ID: " + id + ")");
+            Log.d(TAG, "그룹 추가: " + groupName + " (실제 ID: " + id + ", 매핑 찾음: " + (realGroupId != null) + ")");
         }
     }
     
@@ -400,50 +440,8 @@ public class ChatGroupListActivity extends AppCompatActivity {
                 int groupId = Integer.parseInt(group.getId());
                 Log.d(TAG, "그룹 '" + group.getName() + "'의 멤버 수 조회 시작 (실제 ID: " + groupId + ")");
                 
-                // Retrofit을 사용해 그룹 멤버 수 가져오기
-                retrofit2.Call<ApiResponse> call = apiService.getGroupUsers(groupId);
-                call.enqueue(new retrofit2.Callback<ApiResponse>() {
-                    @Override
-                    public void onResponse(retrofit2.Call<ApiResponse> call, retrofit2.Response<ApiResponse> response) {
-                        int memberCount = 0;
-                        
-                        if (response.isSuccessful() && response.body() != null) {
-                            try {
-                                // API 응답에서 멤버 수 파싱
-                                memberCount = parseMemberCountFromResponse(response.body());
-                                Log.d(TAG, "그룹 " + group.getName() + " 멤버 수: " + memberCount);
-                            } catch (Exception e) {
-                                Log.e(TAG, "그룹 " + group.getName() + " 멤버 수 파싱 오류", e);
-                            }
-                        } else {
-                            Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 실패: " + response.code());
-                        }
-                        
-                        // UI 업데이트
-                        final int finalMemberCount = memberCount;
-                        runOnUiThread(() -> {
-                            if (groupIndex < groupList.size()) {
-                                groupList.get(groupIndex).setMemberCount(finalMemberCount);
-                                adapter.notifyItemChanged(groupIndex);
-                            }
-                        });
-                        
-                        // 모든 API 호출이 완료되었는지 확인
-                        if (completedCalls.incrementAndGet() == totalGroups) {
-                            Log.d(TAG, "모든 그룹의 멤버 수 조회 완료");
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(retrofit2.Call<ApiResponse> call, Throwable t) {
-                        Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 네트워크 오류", t);
-                        
-                        // 실패한 경우에도 카운터 증가
-                        if (completedCalls.incrementAndGet() == totalGroups) {
-                            Log.d(TAG, "모든 그룹의 멤버 수 조회 완료 (일부 실패)");
-                        }
-                    }
-                });
+                // OkHttp로 직접 API 호출
+                fetchGroupMembersWithOkHttp(groupId, group, groupIndex, completedCalls, totalGroups);
                 
             } catch (NumberFormatException e) {
                 Log.e(TAG, "그룹 ID가 숫자가 아님: " + group.getId(), e);
@@ -456,45 +454,66 @@ public class ChatGroupListActivity extends AppCompatActivity {
     }
 
     /**
-     * API 응답에서 멤버 수를 파싱하는 메소드
+     * OkHttp로 그룹 멤버 수를 가져오는 메소드
      */
-    private int parseMemberCountFromResponse(ApiResponse response) {
-        try {
-            // ApiResponse에서 데이터 추출
-            Object data = response.getData();
-            
-            if (data instanceof List) {
-                // 데이터가 리스트인 경우, 리스트 크기가 멤버 수
-                return ((List<?>) data).size();
-            } else if (data instanceof String) {
-                // 데이터가 JSON 문자열인 경우
-                try {
-                    JSONObject jsonObject = new JSONObject((String) data);
-                    if (jsonObject.has("users")) {
-                        JSONArray usersArray = jsonObject.getJSONArray("users");
-                        return usersArray.length();
-                    }
-                } catch (JSONException e) {
-                    Log.e(TAG, "JSON 파싱 오류", e);
-                }
-            } else if (data instanceof Map) {
-                // 데이터가 Map인 경우
-                Map<?, ?> dataMap = (Map<?, ?>) data;
-                if (dataMap.containsKey("users")) {
-                    Object usersObj = dataMap.get("users");
-                    if (usersObj instanceof List) {
-                        return ((List<?>) usersObj).size();
-                    }
+    private void fetchGroupMembersWithOkHttp(int groupId, ChatGroup group, int groupIndex, 
+                                             AtomicInteger completedCalls, int totalGroups) {
+        OkHttpClient client = new OkHttpClient();
+        String url = BASE_URL + "/groups/" + groupId + "/users";
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 네트워크 오류", e);
+                
+                // 실패한 경우에도 카운터 증가
+                if (completedCalls.incrementAndGet() == totalGroups) {
+                    Log.d(TAG, "모든 그룹의 멤버 수 조회 완료 (일부 실패)");
                 }
             }
-            
-            Log.w(TAG, "알 수 없는 응답 형식: " + data);
-            return 0;
-            
-        } catch (Exception e) {
-            Log.e(TAG, "멤버 수 파싱 중 오류", e);
-            return 0;
-        }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                int memberCount = 0;
+                
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "그룹 " + group.getName() + " 멤버 응답: " + responseData);
+                        
+                        JSONObject jsonObject = new JSONObject(responseData);
+                        if (jsonObject.has("users")) {
+                            JSONArray usersArray = jsonObject.getJSONArray("users");
+                            memberCount = usersArray.length();
+                            Log.d(TAG, "그룹 " + group.getName() + " 멤버 수: " + memberCount);
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "그룹 " + group.getName() + " 멤버 수 파싱 오류", e);
+                    }
+                } else {
+                    Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 실패: " + response.code());
+                }
+                
+                // UI 업데이트
+                final int finalMemberCount = memberCount;
+                runOnUiThread(() -> {
+                    if (groupIndex < groupList.size()) {
+                        groupList.get(groupIndex).setMemberCount(finalMemberCount);
+                        adapter.notifyItemChanged(groupIndex);
+                    }
+                });
+                
+                // 모든 API 호출이 완료되었는지 확인
+                if (completedCalls.incrementAndGet() == totalGroups) {
+                    Log.d(TAG, "모든 그룹의 멤버 수 조회 완료");
+                }
+            }
+        });
     }
     
     private void showEmptyState(boolean show) {
