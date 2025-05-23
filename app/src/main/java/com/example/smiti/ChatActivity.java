@@ -355,7 +355,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 .build();
     
         // 파일 업로드 요청 생성
-        String uploadUrl = BASE_URL + "/uploads"; // 서버에서 사용하는 올바른 업로드 경로
+        String uploadUrl = BASE_URL + "/uploads/{fileName}"; // 서버에서 사용하는 올바른 업로드 경로
 
         try {
             // 파일 타입 가져오기
@@ -541,14 +541,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     
     // 파일 URL을 사용해 메시지 생성 및 전송
     private void sendMessageWithFileUrl(String fileUrl, String fileType) {
-        String messageText;
-        if ("image".equals(fileType)) {
-            messageText = "이미지 파일이 전송되었습니다.";
-        } else if ("pdf".equals(fileType)) {
-            messageText = "PDF 문서가 전송되었습니다.";
-        } else {
-            messageText = "파일이 전송되었습니다.";
-        }
+        String messageText = "";  // 빈 문자열로 변경하여 메시지 텍스트 제거
         
         String localId = UUID.randomUUID().toString();
     
@@ -585,7 +578,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             ChatMessage chatMessage = ChatMessage.fromJson(rawJsonMessage);
             Log.d(TAG, "메시지 수신 (서버 시간): SenderId=[" + chatMessage.getSenderId() +
                     "], SenderName=[" + chatMessage.getSenderName() +
-                    "], localId=[" + chatMessage.getLocalId() + "]");
+                    "], localId=[" + chatMessage.getLocalId() + 
+                    "], type=[" + chatMessage.getType() +
+                    "], fileType=[" + chatMessage.getFileType() +
+                    "], fileUrl=[" + chatMessage.getFileUrl() + "]");
 
             // localId로 에코 메시지(내가 보낸 메시지) 확인
             String receivedLocalId = chatMessage.getLocalId();
@@ -598,7 +594,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             runOnUiThread(() -> {
                 Message uiMessage = chatMessage.toUIMessage(); // UI용 Message 객체로 변환 (서버 시간 사용)
                 Log.d(TAG, "UI에 메시지 추가 (서버 시간): 발신자ID=[" + uiMessage.getSenderId() +
-                        "], 발신자이름=[" + uiMessage.getSenderName() + "]");
+                        "], 발신자이름=[" + uiMessage.getSenderName() + 
+                        "], 파일타입=[" + uiMessage.getFileType() +
+                        "], 파일URL=[" + uiMessage.getFileUrl() + "]");
                 messageAdapter.addMessage(uiMessage); // 어댑터에 추가
                 recyclerView.scrollToPosition(messageList.size() - 1); // 맨 아래로 스크롤
             });
