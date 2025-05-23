@@ -1,10 +1,16 @@
 package com.example.smiti.api;
-//서버로부터 받는 응답을 표현하는 모델델
+
 import com.google.gson.annotations.SerializedName;
 import java.util.List;
 import java.util.Map;
 import com.example.smiti.model.Group;
-import com.example.smiti.model.Comment;
+// import com.example.smiti.model.Comment; // 현재 이 클래스는 사용되지 않으므로 주석 처리 또는 제거 가능
+
+// LoginResponse 클래스를 임포트해야 합니다.
+// LoginResponse.java 파일이 com.example.smiti.network 패키지에 있다고 가정합니다.
+// 실제 위치에 맞게 수정해주세요.
+import com.example.smiti.network.LoginResponse;
+
 
 public class ApiResponse {
     @SerializedName("status")
@@ -14,7 +20,7 @@ public class ApiResponse {
     private String message;
 
     @SerializedName("data")
-    private Object data;
+    private Object data; // 다른 API 응답에서 사용될 수 있는 일반적인 data 필드
 
     @SerializedName("posts")
     private List<Map<String, Object>> posts;
@@ -35,7 +41,11 @@ public class ApiResponse {
     private List<Map<String, Object>> comments;
 
     @SerializedName("comment")
-    private Map<String, Object> newComment; // 새로 생성된 댓글 정보 (Map 형태)
+    private Map<String, Object> newComment;
+
+    // 로그인 응답의 "user" 객체를 담을 필드 추가
+    @SerializedName("user")
+    private LoginResponse user; // LoginResponse 타입으로 선언
 
     public String getStatus() {
         return status;
@@ -45,16 +55,28 @@ public class ApiResponse {
         return message;
     }
 
+    // getUser() 메소드 추가
+    public LoginResponse getUser() {
+        return user;
+    }
+
+    // setUser() 메소드 추가 (선택 사항)
+    public void setUser(LoginResponse user) {
+        this.user = user;
+    }
+
     public Object getData() {
-        // post_id가 있으면 가장 먼저 반환
+        // 만약 다른 API에서 'data' 필드에 사용자 정보가 오는 경우가 있다면,
+        // 여기서도 LoginResponse 타입인지 확인하고 반환하는 로직을 추가할 수 있습니다.
+        // 하지만 로그인 API에서는 'user' 필드를 직접 사용하는 것이 더 명확합니다.
+
+        // 기존 getData() 로직 유지 (다른 API 호환성)
         if (postId != null) {
             return postId;
         }
-        // post 필드가 있으면 두 번째로 반환
         if (post != null) {
             return post;
         }
-        // posts 필드가 있으면 세 번째로 반환
         if (posts != null) {
             return posts;
         }
@@ -89,22 +111,24 @@ public class ApiResponse {
         return newComment;
     }
 
-    // 원본 데이터(JSON 구조 전체)에 직접 접근하기 위한 메서드
     public Object getRawData() {
         return this;
     }
 
-    // success 여부 확인 메서드 추가
     public boolean isSuccess() {
-        return "success".equals(status) ||
+        // isSuccess 로직은 현재 상태로도 동작할 수 있지만,
+        // 로그인 성공 여부는 주로 status나 message, 또는 user 객체의 존재 여부로 판단하는 것이 더 명확할 수 있습니다.
+        // 예를 들어, 로그인 API에서는 user 객체가 null이 아니면 성공으로 간주할 수 있습니다.
+        return "success".equalsIgnoreCase(status) || // status 값을 대소문자 구분 없이 비교
+                (message != null && message.toLowerCase().contains("successful")) || // message에 "successful" 포함 여부
+                user != null || // 로그인 응답의 경우 user 객체가 있으면 성공
                 posts != null ||
                 data != null ||
                 groups != null ||
                 post != null ||
                 postId != null ||
                 comments != null ||
-                newComment != null || // 새로 생성된 댓글 정보가 있으면 성공으로 간주할 수도 있습니다.
-                (message != null && message.contains("successfully"));
+                newComment != null;
     }
 
     public Map<String, List<String>> getAvailableTimes() {
@@ -121,6 +145,7 @@ public class ApiResponse {
                 "status='" + status + '\'' +
                 ", message='" + message + '\'' +
                 ", data=" + (data != null ? "not null" : "null") +
+                ", user=" + (user != null ? user.toString() : "null") + // user 정보 추가
                 ", posts=" + (posts != null ? posts.size() + " items" : "null") +
                 ", groups=" + (groups != null ? groups.size() + " items" : "null") +
                 ", post=" + (post != null ? "not null" : "null") +
