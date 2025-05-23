@@ -132,7 +132,7 @@ public class ProfileActivity extends AppCompatActivity {
                 finish();
                 return true;
             } else if (id == R.id.navigation_chat) {
-                Intent intent = new Intent(ProfileActivity.this, ChatActivity.class);
+                Intent intent = new Intent(ProfileActivity.this, ChatGroupListActivity.class);
                 startActivity(intent);
                 finish();
                 return true;
