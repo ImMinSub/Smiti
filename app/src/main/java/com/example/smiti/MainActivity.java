@@ -72,8 +72,8 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent);
                 return true;
             } else if (id == R.id.navigation_chat) {
-                // 채팅 화면으로 이동
-                Intent intent = new Intent(MainActivity.this, ChatActivity.class);
+                // 채팅 그룹 목록 화면으로 이동
+                Intent intent = new Intent(MainActivity.this, ChatGroupListActivity.class);
                 startActivity(intent);
                 return true;
             } else if (id == R.id.navigation_board) {
