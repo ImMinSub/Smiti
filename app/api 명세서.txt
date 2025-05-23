@@ -96,7 +96,7 @@ curl -X 'POST' 'http://202.31.246.51:80/groups' -H 'Content-Type: application/js
 
 **13**
 ```
-방식 : POST
+방식 : GET
 경로 : /groups/{groupid}/users
 설명 : 그룹에 속한 사용자 조회
 curl "http://202.31.246.51:80/groups/6/users"
