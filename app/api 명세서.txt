@@ -42,7 +42,7 @@ curl "http://202.31.246.51:80/users/me?email=user1@example.com"
 ```
 방식 : GET
 경로 : /users/me/groups
-설명 : 내가 속한 그룹 목록 	조회
+설명 : 내가 속한 그룹 목록 조회
 curl "http://202.31.246.51:80/users/me/groups?email=user1@example.com"
 ```
 
@@ -96,13 +96,21 @@ curl -X 'POST' 'http://202.31.246.51:80/groups' -H 'Content-Type: application/js
 
 **13**
 ```
+방식 : POST
+경로 : /groups/{groupid}/users
+설명 : 그룹에 속한 사용자 조회
+curl "http://202.31.246.51:80/groups/6/users"
+```
+
+**14**
+```
 방식 : PUT
 경로 : /users/me/available-times
 설명 : 스터디 가능 시간대 업데이트
 curl -X 'PUT' 'http://202.31.246.51:80/users/me/available-times' -H 'Content-Type: application/json' -d '{ "email": "user1@example.com", "available_times": { " ": ["10:00~12:00", "13:00~15:00"], " ": ["14:00~16:00"], " ": ["16:00~18:00"] } }'
 ```
 
-**14**
+**15**
 ```
 방식 : GET
 경로 : /users/me/available-times
@@ -110,7 +118,7 @@ curl -X 'PUT' 'http://202.31.246.51:80/users/me/available-times' -H 'Content-Typ
 curl "http://202.31.246.51:80/users/me/available-times?email=user1@example.com"
 ```
 
-**15**
+**16**
 ```
 방식 : GET
 경로 : /groups/{groupId}/like-times
@@ -118,7 +126,7 @@ curl "http://202.31.246.51:80/users/me/available-times?email=user1@example.com"
 curl "http://202.31.246.51:80/groups/12/like-times"
 ```
 
-**16**
+**17**
 ```
 방식 : POST
 경로 : /posts
@@ -126,7 +134,7 @@ curl "http://202.31.246.51:80/groups/12/like-times"
 curl -X 'POST' 'http://202.31.246.51:80/posts' -F 'email=user1@example.com' -F 'board_type= ' -F 'title=   ' -F 'content=     '
 ```
 
-**17**
+**18**
 ```
 방식 : PUT
 경로 : /posts/{postId}
@@ -134,7 +142,7 @@ curl -X 'POST' 'http://202.31.246.51:80/posts' -F 'email=user1@example.com' -F '
 curl -X 'PUT' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: application/json' -d '{"post_id": 30, "email": "user1@example.com", "title": "       ", "content": "    " }'
 ```
 
-**18**
+**19**
 ```
 방식 : GET
 경로 : /posts
@@ -142,7 +150,7 @@ curl -X 'PUT' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: application/j
 curl "http://202.31.246.51:80/posts?board_type=free"
 ```
 
-**19**
+**20**
 ```
 방식 : GET
 경로 : /posts/{postId}
@@ -150,7 +158,7 @@ curl "http://202.31.246.51:80/posts?board_type=free"
 curl "http://202.31.246.51:80/posts/29"
 ```
 
-**20**
+**21**
 ```
 방식 : DELETE
 경로 : /posts/{postId}
@@ -158,7 +166,7 @@ curl "http://202.31.246.51:80/posts/29"
 curl -X 'DELETE' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: application/json' -d '{"post_id": 30, "email": "user1@example.com" }'
 ```
 
-**21**
+**22**
 ```
 방식 : GET
 경로 : /board-uploads/{fileName}
@@ -166,7 +174,7 @@ curl -X 'DELETE' 'http://202.31.246.51:80/posts/30' -H 'Content-Type: applicatio
 curl -O 'http://202.31.246.51:80/board-uploads/{fileName}'
 ```
 
-**22**
+**23**
 ```
 방식 : POST
 경로 : /ai/ask
@@ -174,14 +182,14 @@ curl -O 'http://202.31.246.51:80/board-uploads/{fileName}'
 curl -X 'POST' 'http://202.31.246.51:80/ai/ask' -H 'Content-Type: application/json' -d '{ "question": "smbti ?" }'
 ```
 
-**23**
+**24**
 ```
 방식 : WebSocket
 경로 : /ws/{groupId}/{senderEmail}
 설명 : 그룹 별 실시간 채팅 WebSocket 연결
 ```
 
-**24**
+**25**
 ```
 방식 : GET
 경로 : /chat/{groupId}/history
@@ -189,7 +197,7 @@ curl -X 'POST' 'http://202.31.246.51:80/ai/ask' -H 'Content-Type: application/js
 curl "http://202.31.246.51:80/chat/1/history"
 ```
 
-**25**
+**26**
 ```
 방식 : POST
 경로 : /chat/summary
@@ -197,7 +205,7 @@ curl "http://202.31.246.51:80/chat/1/history"
 curl -X 'POST' 'http://202.31.246.51:80/chat/summary' -H 'Content-Type: application/json' -d '{ "group_id": 2 }'
 ```
 
-**26**
+**27**
 ```
 방식 : GET
 경로 : /uploads/{fileName}
@@ -205,7 +213,7 @@ curl -X 'POST' 'http://202.31.246.51:80/chat/summary' -H 'Content-Type: applicat
 curl -O 'http://202.31.246.51:80/uploads/{fileName}'
 ```
 
-**27**
+**28**
 ```
 방식 : POST
 경로 : /admins/promote
@@ -213,7 +221,7 @@ curl -O 'http://202.31.246.51:80/uploads/{fileName}'
 curl -X 'POST' 'http://202.31.246.51:80/admins/promote' -H 'Content-Type: application/json' -d '{ "email": "user2@example.com"}'
 ```
 
-**28**
+**29**
 ```
 방식 : POST
 경로 : /admins/demote
