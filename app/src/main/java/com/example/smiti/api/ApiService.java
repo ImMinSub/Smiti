@@ -57,6 +57,10 @@ public interface ApiService {
     @POST("groups/{groupId}/users")
     Call<ApiResponse> addUserToGroup(@Path("groupId") int groupId, @Body JoinGroupRequest request);
 
+    // 그룹 멤버 조회 API 추가
+    @GET("groups/{groupId}/users")
+    Call<ApiResponse> getGroupUsers(@Path("groupId") int groupId);
+
     @POST("groups")
     Call<ApiResponse> createGroup(@Body CreateGroupRequest request);
 
