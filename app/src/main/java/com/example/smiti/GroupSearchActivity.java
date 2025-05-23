@@ -271,7 +271,7 @@ public class GroupSearchActivity extends AppCompatActivity {
                 // 이미 그룹 검색 화면에 있음
                 return true;
             } else if (id == R.id.navigation_chat) {
-                Intent intent = new Intent(GroupSearchActivity.this, ChatActivity.class);
+                Intent intent = new Intent(GroupSearchActivity.this, ChatGroupListActivity.class);
                 startActivity(intent);
                 finish();
                 return true;
