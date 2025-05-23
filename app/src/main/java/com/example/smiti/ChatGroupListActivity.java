@@ -16,6 +16,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.smiti.api.ApiResponse;
+import com.example.smiti.api.ApiService;
+import com.example.smiti.api.RetrofitClient;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import org.json.JSONArray;
@@ -24,8 +27,11 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -46,6 +52,12 @@ public class ChatGroupListActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
     private String currentUserEmail;
     private TextView emptyStateTextView;
+    
+    // Retrofit API Service
+    private ApiService apiService;
+    
+    // 그룹 이름과 실제 ID를 매핑하는 맵
+    private Map<String, Integer> groupNameToIdMap = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,6 +66,9 @@ public class ChatGroupListActivity extends AppCompatActivity {
 
         // 사용자 정보 로드
         loadUserData();
+
+        // Retrofit 초기화
+        initRetrofit();
 
         // 뷰 초기화
         recyclerView = findViewById(R.id.recyclerViewGroups);
@@ -67,8 +82,13 @@ public class ChatGroupListActivity extends AppCompatActivity {
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         setupBottomNavigation();
 
-        // 그룹 목록 가져오기
-        fetchGroupList();
+        // 전체 그룹 목록을 먼저 가져와서 이름-ID 매핑을 생성한 후, 사용자 그룹 목록을 가져오기
+        fetchAllGroupsForMapping();
+    }
+
+    private void initRetrofit() {
+        // 기존 RetrofitClient의 구조에 맞게 수정
+        apiService = RetrofitClient.getApiService();
     }
 
     private void loadUserData() {
@@ -102,18 +122,116 @@ public class ChatGroupListActivity extends AppCompatActivity {
             return false;
         });
     }
+
+    /**
+     * 전체 그룹 목록을 가져와서 그룹 이름과 ID를 매핑하는 메소드
+     */
+    private void fetchAllGroupsForMapping() {
+        retrofit2.Call<ApiResponse> call = apiService.getAllGroups();
+        call.enqueue(new retrofit2.Callback<ApiResponse>() {
+            @Override
+            public void onResponse(retrofit2.Call<ApiResponse> call, retrofit2.Response<ApiResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        parseAllGroupsResponse(response.body());
+                        Log.d(TAG, "그룹 이름-ID 매핑 완료. 매핑된 그룹 수: " + groupNameToIdMap.size());
+                        
+                        // 매핑이 완료된 후 사용자 그룹 목록 가져오기
+                        fetchGroupList();
+                        
+                    } catch (Exception e) {
+                        Log.e(TAG, "전체 그룹 목록 파싱 오류", e);
+                        // 매핑 실패해도 사용자 그룹 목록은 가져오기
+                        fetchGroupList();
+                    }
+                } else {
+                    Log.e(TAG, "전체 그룹 목록 조회 실패: " + response.code());
+                    // 매핑 실패해도 사용자 그룹 목록은 가져오기
+                    fetchGroupList();
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<ApiResponse> call, Throwable t) {
+                Log.e(TAG, "전체 그룹 목록 조회 네트워크 오류", t);
+                // 매핑 실패해도 사용자 그룹 목록은 가져오기
+                fetchGroupList();
+            }
+        });
+    }
+
+    /**
+     * 전체 그룹 목록 응답을 파싱하여 그룹 이름-ID 매핑을 생성
+     */
+    private void parseAllGroupsResponse(ApiResponse response) {
+        try {
+            Object data = response.getData();
+            JSONArray groupsArray = null;
+
+            if (data instanceof List) {
+                // List를 JSONArray로 변환
+                List<?> dataList = (List<?>) data;
+                groupsArray = new JSONArray();
+                for (Object item : dataList) {
+                    if (item instanceof Map) {
+                        groupsArray.put(new JSONObject((Map<?, ?>) item));
+                    }
+                }
+            } else if (data instanceof String) {
+                // JSON 문자열인 경우 파싱
+                String jsonString = (String) data;
+                if (jsonString.trim().startsWith("[")) {
+                    groupsArray = new JSONArray(jsonString);
+                } else {
+                    JSONObject jsonObject = new JSONObject(jsonString);
+                    if (jsonObject.has("groups")) {
+                        groupsArray = jsonObject.getJSONArray("groups");
+                    }
+                }
+            }
+
+            if (groupsArray != null) {
+                for (int i = 0; i < groupsArray.length(); i++) {
+                    JSONObject groupObject = groupsArray.getJSONObject(i);
+                    
+                    String groupName = groupObject.optString("name", "");
+                    int groupId = groupObject.optInt("id", -1);
+                    
+                    // 대체 키도 확인
+                    if (groupName.isEmpty() && groupObject.has("group_name")) {
+                        groupName = groupObject.optString("group_name", "");
+                    }
+                    if (groupId == -1 && groupObject.has("group_id")) {
+                        groupId = groupObject.optInt("group_id", -1);
+                    }
+
+                    if (!groupName.isEmpty() && groupId != -1) {
+                        groupNameToIdMap.put(groupName, groupId);
+                        Log.d(TAG, "그룹 매핑: " + groupName + " -> " + groupId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "전체 그룹 목록 파싱 중 오류", e);
+        }
+    }
     
     // 문자열 배열을 그룹으로 파싱하는 메소드 (my_groups 형식의 응답용)
     private void parseStringArrayAsGroups(JSONArray groupNamesArray, List<ChatGroup> groups) throws JSONException {
         for (int i = 0; i < groupNamesArray.length(); i++) {
             String groupName = groupNamesArray.getString(i);
-            // 이름만 알고 나머지 정보는 없기 때문에 기본값으로 설정
-            String id = String.valueOf(i); // 임시 ID
+            
+            // 그룹 이름에서 실제 ID 찾기
+            Integer realGroupId = groupNameToIdMap.get(groupName);
+            String id = realGroupId != null ? String.valueOf(realGroupId) : String.valueOf(i + 1);
+            
             String description = ""; // 설명 없음
-            int memberCount = 0; // 멤버 수 정보 없음
+            int memberCount = 0; // 멤버 수 정보 없음 (나중에 API로 가져올 예정)
             
             ChatGroup group = new ChatGroup(id, groupName, description, memberCount);
             groups.add(group);
+            
+            Log.d(TAG, "그룹 추가: " + groupName + " (ID: " + id + ")");
         }
     }
     
@@ -124,7 +242,7 @@ public class ChatGroupListActivity extends AppCompatActivity {
             String id = groupObject.optString("id", "");
             String name = groupObject.optString("name", "무제 그룹");
             String description = groupObject.optString("description", "");
-            int memberCount = groupObject.optInt("member_count", 0);
+            int memberCount = 0; // 기본값으로 설정 (나중에 API로 가져올 예정)
             
             // 필드 이름이 다를 경우를 대비한 대체 키도 확인
             if (id.isEmpty() && groupObject.has("group_id")) {
@@ -133,15 +251,6 @@ public class ChatGroupListActivity extends AppCompatActivity {
             
             if (name.equals("무제 그룹") && groupObject.has("group_name")) {
                 name = groupObject.optString("group_name", "무제 그룹");
-            }
-            
-            if (memberCount == 0 && groupObject.has("members")) {
-                Object membersObj = groupObject.get("members");
-                if (membersObj instanceof JSONArray) {
-                    memberCount = ((JSONArray) membersObj).length();
-                } else if (membersObj instanceof Integer) {
-                    memberCount = (Integer) membersObj;
-                }
             }
             
             ChatGroup group = new ChatGroup(id, name, description, memberCount);
@@ -237,13 +346,16 @@ public class ChatGroupListActivity extends AppCompatActivity {
                         runOnUiThread(() -> {
                             groupList.clear();
                             groupList.addAll(groups);
-                            adapter.notifyDataSetChanged();
                             
                             if (groups.isEmpty()) {
                                 // 그룹이 없는 경우 메시지 표시
                                 showEmptyState(true);
+                                adapter.notifyDataSetChanged();
                             } else {
                                 showEmptyState(false);
+                                adapter.notifyDataSetChanged();
+                                // 각 그룹의 멤버 수를 가져오기
+                                fetchMemberCountsForGroups();
                             }
                         });
 
@@ -265,6 +377,124 @@ public class ChatGroupListActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    /**
+     * 각 그룹의 멤버 수를 가져오는 메소드
+     */
+    private void fetchMemberCountsForGroups() {
+        if (groupList.isEmpty()) {
+            return;
+        }
+
+        // 완료된 API 호출 수를 추적하기 위한 카운터
+        AtomicInteger completedCalls = new AtomicInteger(0);
+        int totalGroups = groupList.size();
+
+        for (int i = 0; i < groupList.size(); i++) {
+            ChatGroup group = groupList.get(i);
+            final int groupIndex = i;
+            
+            // 그룹 ID가 유효한지 확인
+            try {
+                int groupId = Integer.parseInt(group.getId());
+                Log.d(TAG, "그룹 '" + group.getName() + "'의 멤버 수 조회 시작 (실제 ID: " + groupId + ")");
+                
+                // Retrofit을 사용해 그룹 멤버 수 가져오기
+                retrofit2.Call<ApiResponse> call = apiService.getGroupUsers(groupId);
+                call.enqueue(new retrofit2.Callback<ApiResponse>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<ApiResponse> call, retrofit2.Response<ApiResponse> response) {
+                        int memberCount = 0;
+                        
+                        if (response.isSuccessful() && response.body() != null) {
+                            try {
+                                // API 응답에서 멤버 수 파싱
+                                memberCount = parseMemberCountFromResponse(response.body());
+                                Log.d(TAG, "그룹 " + group.getName() + " 멤버 수: " + memberCount);
+                            } catch (Exception e) {
+                                Log.e(TAG, "그룹 " + group.getName() + " 멤버 수 파싱 오류", e);
+                            }
+                        } else {
+                            Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 실패: " + response.code());
+                        }
+                        
+                        // UI 업데이트
+                        final int finalMemberCount = memberCount;
+                        runOnUiThread(() -> {
+                            if (groupIndex < groupList.size()) {
+                                groupList.get(groupIndex).setMemberCount(finalMemberCount);
+                                adapter.notifyItemChanged(groupIndex);
+                            }
+                        });
+                        
+                        // 모든 API 호출이 완료되었는지 확인
+                        if (completedCalls.incrementAndGet() == totalGroups) {
+                            Log.d(TAG, "모든 그룹의 멤버 수 조회 완료");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<ApiResponse> call, Throwable t) {
+                        Log.e(TAG, "그룹 " + group.getName() + " 멤버 조회 네트워크 오류", t);
+                        
+                        // 실패한 경우에도 카운터 증가
+                        if (completedCalls.incrementAndGet() == totalGroups) {
+                            Log.d(TAG, "모든 그룹의 멤버 수 조회 완료 (일부 실패)");
+                        }
+                    }
+                });
+                
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "그룹 ID가 숫자가 아님: " + group.getId(), e);
+                // 잘못된 ID인 경우에도 카운터 증가
+                if (completedCalls.incrementAndGet() == totalGroups) {
+                    Log.d(TAG, "모든 그룹의 멤버 수 조회 완료 (일부 실패)");
+                }
+            }
+        }
+    }
+
+    /**
+     * API 응답에서 멤버 수를 파싱하는 메소드
+     */
+    private int parseMemberCountFromResponse(ApiResponse response) {
+        try {
+            // ApiResponse에서 데이터 추출
+            Object data = response.getData();
+            
+            if (data instanceof List) {
+                // 데이터가 리스트인 경우, 리스트 크기가 멤버 수
+                return ((List<?>) data).size();
+            } else if (data instanceof String) {
+                // 데이터가 JSON 문자열인 경우
+                try {
+                    JSONObject jsonObject = new JSONObject((String) data);
+                    if (jsonObject.has("users")) {
+                        JSONArray usersArray = jsonObject.getJSONArray("users");
+                        return usersArray.length();
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "JSON 파싱 오류", e);
+                }
+            } else if (data instanceof Map) {
+                // 데이터가 Map인 경우
+                Map<?, ?> dataMap = (Map<?, ?>) data;
+                if (dataMap.containsKey("users")) {
+                    Object usersObj = dataMap.get("users");
+                    if (usersObj instanceof List) {
+                        return ((List<?>) usersObj).size();
+                    }
+                }
+            }
+            
+            Log.w(TAG, "알 수 없는 응답 형식: " + data);
+            return 0;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "멤버 수 파싱 중 오류", e);
+            return 0;
+        }
     }
     
     private void showEmptyState(boolean show) {
@@ -305,6 +535,10 @@ public class ChatGroupListActivity extends AppCompatActivity {
 
         public int getMemberCount() {
             return memberCount;
+        }
+
+        public void setMemberCount(int memberCount) {
+            this.memberCount = memberCount;
         }
     }
 
@@ -364,9 +598,16 @@ public class ChatGroupListActivity extends AppCompatActivity {
             public void bind(ChatGroup group) {
                 groupName.setText(group.getName());
                 groupDescription.setText(group.getDescription());
-                memberCount.setText(group.getMemberCount() + "명");
+                
+                // 멤버 수 표시 (로딩 중일 때와 로딩 완료 후 구분)
+                if (group.getMemberCount() == 0) {
+                    memberCount.setText("로딩중...");
+                } else {
+                    memberCount.setText(group.getMemberCount() + "명");
+                }
+                
                 // TODO: 그룹 아이콘 설정 (필요시)
             }
         }
     }
-} 
+}
