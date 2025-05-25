@@ -28,6 +28,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
+import com.example.smiti.repository.MessageRepository;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -106,6 +108,8 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     // 보낸 메시지의 localId를 저장하여 에코 메시지를 식별하기 위한 Set
     private Set<String> sentMessageIds = new HashSet<>();
 
+    private MessageRepository messageRepository; // 메시지 저장소
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -126,6 +130,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     return super.add(e);
                 }
             };
+
+            // 메시지 저장소 초기화
+            messageRepository = new MessageRepository(this);
 
             loadUserData(); // 사용자 정보 로드
 
@@ -149,9 +156,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             if (groupId != null && !groupId.isEmpty()) {
                 currentGroupId = groupId;
             }
+             
+            // 저장된 메시지 로드 (웹소켓 연결 전에 먼저 로드)
+            loadStoredMessages();
 
-            initWebSocket(); // 웹소켓 초기화 및 연결
-            
             // 파일 다운로드를 위한 권한 체크
             checkStoragePermission();
 
@@ -159,6 +167,35 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             Log.e(TAG, "onCreate 오류", e);
             Toast.makeText(this, "앱 초기화 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // 저장된 메시지 로드
+    private void loadStoredMessages() {
+        messageRepository.loadMessagesForGroup(currentGroupId, new MessageRepository.MessageLoadCallback() {
+            @Override
+            public void onMessagesLoaded(List<Message> messages) {
+                runOnUiThread(() -> {
+                    messageList.clear();
+                    messageList.addAll(messages);
+                    messageAdapter.notifyDataSetChanged();
+                    
+                    if (!messages.isEmpty()) {
+                        recyclerView.scrollToPosition(messageList.size() - 1);
+                        Log.d(TAG, "저장된 메시지 " + messages.size() + "개 로드됨");
+                    }
+                    
+                    // 저장된 메시지 로드 완료 후 웹소켓 연결
+                    initWebSocket();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "저장된 메시지 로드 실패: " + error);
+                // 메시지 로드 실패해도 웹소켓은 연결
+                runOnUiThread(() -> initWebSocket());
+            }
+        });
     }
     
     // 저장소 접근 권한 체크
@@ -219,9 +256,12 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 액티비티 종료 시 웹소켓 연결 해제
         if (webSocketService != null) {
             webSocketService.disconnect();
+        }
+        // 메시지 저장소 정리 (추가)
+        if (messageRepository != null) {
+            messageRepository.cleanup();
         }
     }
 
@@ -355,34 +395,35 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 .build();
     
         // 파일 업로드 요청 생성
-        String uploadUrl = BASE_URL + "/uploads/{fileName}"; // 서버에서 사용하는 올바른 업로드 경로
+        String uploadUrl = BASE_URL + "/posts"; // 게시글 업로드 엔드포인트 활용
 
         try {
             // 파일 타입 가져오기
             String mimeType = getContentResolver().getType(fileUri);
             String fileType = "image"; // 기본값
-            String filename = "uploaded_file"; // 기본 파일명
+            String tempFilename = "uploaded_file"; // 기본 파일명
             
             // 파일의 MIME 타입에 따라 처리
             if (mimeType != null) {
                 if (mimeType.startsWith("image/")) {
                     fileType = "image";
-                    filename = "uploaded_image." + getMimeExtension(mimeType);
+                    tempFilename = "uploaded_image." + getMimeExtension(mimeType);
                 } else if (mimeType.equals("application/pdf")) {
                     fileType = "pdf";
-                    filename = "uploaded_document.pdf";
+                    tempFilename = "uploaded_document.pdf";
                 } else {
                     fileType = "file";
-                    filename = "uploaded_file";
+                    tempFilename = "uploaded_file";
                 }
             }
             
             // 파일명 가져오기 시도
             String displayName = getFileDisplayName(fileUri);
             if (displayName != null && !displayName.isEmpty()) {
-                filename = displayName;
+                tempFilename = displayName;
             }
             
+            final String filename = tempFilename; // final 변수로 선언
             final String finalFileType = fileType;
             
             // ContentResolver를 사용하여 Uri로부터 InputStream 열기
@@ -405,85 +446,111 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
 
             // byte[] 배열로부터 RequestBody 생성
             RequestBody fileBody = RequestBody.create(MediaType.parse(mimeType != null ? mimeType : "application/octet-stream"), fileBytes);
-        RequestBody requestBody = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("file", filename, fileBody)
-                .build();
+            
+            // 게시글 업로드 엔드포인트와 동일한 형식으로 multipart 요청 생성
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("email", currentUserEmail != null ? currentUserEmail : "")
+                    .addFormDataPart("board_type", "chat")
+                    .addFormDataPart("title", "Chat File")
+                    .addFormDataPart("content", "File uploaded from chat")
+                    .addFormDataPart("file", filename, fileBody)
+                    .build();
     
-        Request request = new Request.Builder()
-                .url(uploadUrl)
-                .post(requestBody)
-                .build();
+            Request request = new Request.Builder()
+                    .url(uploadUrl)
+                    .post(requestBody)
+                    .build();
     
-        // 파일 업로드 요청 실행
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "파일 업로드 실패", e);
-                runOnUiThread(() -> showSnackbar("파일 업로드 실패"));
+            // 파일 업로드 요청 실행
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                    Log.e(TAG, "파일 업로드 실패", e);
+                    runOnUiThread(() -> showSnackbar("파일 업로드 실패"));
                     closeStream(inputStream); // 스트림 닫기
-            }
-    
-            @Override
-            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                if (response.isSuccessful() && response.body() != null) {
-                    String responseData = response.body().string();
-                    try {
-                        JSONObject jsonResponse = new JSONObject(responseData);
-                        // 서버에서 file_url 또는 fileUrl 키로 URL을 반환할 수 있음
-                        String fileUrl = jsonResponse.optString("file_url", 
-                                        jsonResponse.optString("fileUrl", 
-                                        jsonResponse.optString("url", ""))); // 서버에서 반환된 파일 URL
-    
-                        if (!fileUrl.isEmpty()) {
-                            // 파일 URL을 사용해 메시지 전송
-                            sendMessageWithFileUrl(fileUrl, finalFileType);
-                        } else {
-                            Log.e(TAG, "서버 응답에 URL이 없음: " + responseData);
-                            runOnUiThread(() -> showSnackbar("파일 URL을 가져오지 못했습니다."));
-                        }
-                    } catch (JSONException e) {
-                        Log.e(TAG, "파일 업로드 응답 파싱 오류", e);
-                        runOnUiThread(() -> showSnackbar("서버 응답 처리 중 오류가 발생했습니다."));
-                    }
-                } else {
-                    String errorBody = "";
-                    try {
-                        if (response.body() != null) {
-                            errorBody = response.body().string();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "에러 응답 읽기 실패", e);
-                    }
-                    
-                    Log.e(TAG, "파일 업로드 서버 오류: " + response.code() + ", 응답: " + errorBody);
-                    
-                    final String errorMessage;
-                    switch (response.code()) {
-                        case 404:
-                            errorMessage = "파일 업로드 경로를 찾을 수 없습니다 (404)";
-                            break;
-                        case 413:
-                            errorMessage = "파일이 너무 큽니다 (413)";
-                            break;
-                        case 401:
-                        case 403:
-                            errorMessage = "파일 업로드 권한이 없습니다 (" + response.code() + ")";
-                            break;
-                        case 500:
-                        case 502:
-                        case 503:
-                            errorMessage = "서버 내부 오류 (" + response.code() + ")";
-                            break;
-                        default:
-                            errorMessage = "서버 오류로 파일 업로드 실패 (" + response.code() + ")";
-                    }
-                    
-                    runOnUiThread(() -> showSnackbar(errorMessage));
                 }
-                closeStream(inputStream); // 스트림 닫기
-            }
-        });
+    
+                @Override
+                public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseData = response.body().string();
+                        try {
+                            JSONObject jsonResponse = new JSONObject(responseData);
+                            
+                            // 게시글 업로드 응답에서 파일 정보 추출
+                            String fileUrl = "";
+                            if (jsonResponse.has("data")) {
+                                JSONObject data = jsonResponse.getJSONObject("data");
+                                if (data.has("file_url")) {
+                                    fileUrl = data.getString("file_url");
+                                } else if (data.has("fileUrl")) {
+                                    fileUrl = data.getString("fileUrl");
+                                }
+                            }
+                            
+                            // 파일 URL이 없으면 기본 경로 생성 (파일명 기반)
+                            if (fileUrl.isEmpty()) {
+                                fileUrl = BASE_URL + "/board-uploads/" + filename;
+                            }
+                            
+                            // 상대 경로를 절대 경로로 변환
+                            if (fileUrl.startsWith("/")) {
+                                fileUrl = BASE_URL + fileUrl;
+                            }
+    
+                            if (!fileUrl.isEmpty()) {
+                                // 파일 URL을 사용해 메시지 전송
+                                sendMessageWithFileUrl(fileUrl, finalFileType);
+                            } else {
+                                Log.e(TAG, "서버 응답에 URL이 없음: " + responseData);
+                                runOnUiThread(() -> showSnackbar("파일 URL을 가져오지 못했습니다."));
+                            }
+                        } catch (JSONException e) {
+                            Log.e(TAG, "파일 업로드 응답 파싱 오류", e);
+                            runOnUiThread(() -> showSnackbar("서버 응답 처리 중 오류가 발생했습니다."));
+                        }
+                    } else {
+                        String errorBody = "";
+                        try {
+                            if (response.body() != null) {
+                                errorBody = response.body().string();
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "에러 응답 읽기 실패", e);
+                        }
+                        
+                        Log.e(TAG, "파일 업로드 서버 오류: " + response.code() + ", 응답: " + errorBody);
+                        
+                        final String errorMessage;
+                        switch (response.code()) {
+                            case 404:
+                                errorMessage = "파일 업로드 경로를 찾을 수 없습니다 (404)";
+                                break;
+                            case 405:
+                                errorMessage = "허용되지 않은 요청 방식입니다 (405)";
+                                break;
+                            case 413:
+                                errorMessage = "파일이 너무 큽니다 (413)";
+                                break;
+                            case 401:
+                            case 403:
+                                errorMessage = "파일 업로드 권한이 없습니다 (" + response.code() + ")";
+                                break;
+                            case 500:
+                            case 502:
+                            case 503:
+                                errorMessage = "서버 내부 오류 (" + response.code() + ")";
+                                break;
+                            default:
+                                errorMessage = "서버 오류로 파일 업로드 실패 (" + response.code() + ")";
+                        }
+                        
+                        runOnUiThread(() -> showSnackbar(errorMessage));
+                    }
+                    closeStream(inputStream); // 스트림 닫기
+                }
+            });
 
         } catch (FileNotFoundException e) {
             Log.e(TAG, "파일을 찾을 수 없습니다: " + fileUri, e);
@@ -541,7 +608,8 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     
     // 파일 URL을 사용해 메시지 생성 및 전송
     private void sendMessageWithFileUrl(String fileUrl, String fileType) {
-        String messageText = "";  // 빈 문자열로 변경하여 메시지 텍스트 제거
+        // 파일 전송 시 적절한 메시지 텍스트 설정
+        String messageText = "파일을 전송했습니다.";
         
         String localId = UUID.randomUUID().toString();
     
@@ -553,6 +621,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     
         if (webSocketService != null && webSocketService.isConnected()) {
             webSocketService.sendMessage(chatMessage.toJson());
+            Log.d(TAG, "파일 메시지 전송: fileUrl=" + fileUrl + ", fileType=" + fileType + ", localId=" + localId + ", message=" + messageText);
         } else {
             showSnackbar("서버 연결 안됨");
             sentMessageIds.remove(localId);
@@ -574,31 +643,29 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     @Override
     public void onMessage(String rawJsonMessage) {
         try {
-            // 메시지 파싱 (서버 시간 포함)
             ChatMessage chatMessage = ChatMessage.fromJson(rawJsonMessage);
-            Log.d(TAG, "메시지 수신 (서버 시간): SenderId=[" + chatMessage.getSenderId() +
-                    "], SenderName=[" + chatMessage.getSenderName() +
-                    "], localId=[" + chatMessage.getLocalId() + 
+            Log.d(TAG, "메시지 수신: SenderId=[" + chatMessage.getSenderId() +
                     "], type=[" + chatMessage.getType() +
-                    "], fileType=[" + chatMessage.getFileType() +
                     "], fileUrl=[" + chatMessage.getFileUrl() + "]");
 
-            // localId로 에코 메시지(내가 보낸 메시지) 확인
             String receivedLocalId = chatMessage.getLocalId();
-            if (receivedLocalId != null && !receivedLocalId.isEmpty() && sentMessageIds.contains(receivedLocalId)) {
-                Log.d(TAG, "내가 보낸 메시지(Echo) 감지 (localId) - UI 업데이트 실행");
-                sentMessageIds.remove(receivedLocalId); // 확인된 ID는 제거
+            boolean isEchoMessage = receivedLocalId != null && !receivedLocalId.isEmpty() && 
+                                   sentMessageIds.contains(receivedLocalId);
+            
+            if (isEchoMessage) {
+                Log.d(TAG, "내가 보낸 메시지(Echo) 감지");
+                sentMessageIds.remove(receivedLocalId);
             }
 
-            // 모든 메시지(내 에코 메시지 포함)를 UI에 추가
             runOnUiThread(() -> {
-                Message uiMessage = chatMessage.toUIMessage(); // UI용 Message 객체로 변환 (서버 시간 사용)
-                Log.d(TAG, "UI에 메시지 추가 (서버 시간): 발신자ID=[" + uiMessage.getSenderId() +
-                        "], 발신자이름=[" + uiMessage.getSenderName() + 
-                        "], 파일타입=[" + uiMessage.getFileType() +
-                        "], 파일URL=[" + uiMessage.getFileUrl() + "]");
-                messageAdapter.addMessage(uiMessage); // 어댑터에 추가
-                recyclerView.scrollToPosition(messageList.size() - 1); // 맨 아래로 스크롤
+                Message uiMessage = chatMessage.toUIMessage();
+                
+                // UI에 메시지 추가 (에코 메시지도 표시)
+                messageAdapter.addMessage(uiMessage);
+                recyclerView.scrollToPosition(messageList.size() - 1);
+                
+                // 데이터베이스에 저장 (중복 체크는 데이터베이스에서 처리)
+                messageRepository.saveMessage(currentGroupId, uiMessage);
             });
 
         } catch (JSONException e) {
@@ -629,21 +696,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     // 화면 하단에 Snackbar 메시지 표시
     private void showSnackbar(String message) {
         try {
-            if (rootView == null) {
-                rootView = findViewById(android.R.id.content);
-                if (rootView == null) {
-                    // 최후의 수단으로 Toast 사용
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-            }
-            // 채팅 입력창을 앵커로 지정 (edit_message가 입력창의 ID라면)
-            View anchor = messageEditText != null ? messageEditText : rootView;
-            Snackbar snackbar = Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT).setAnchorView(anchor);
-            snackbar.show();
+            // 복잡한 Snackbar 대신 간단한 Toast 사용
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Log.e(TAG, "Snackbar 표시 중 오류", e);
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show(); // Snackbar 실패 시 Toast 사용
+            Log.e(TAG, "Toast 표시 중 오류", e);
         }
     }
 
