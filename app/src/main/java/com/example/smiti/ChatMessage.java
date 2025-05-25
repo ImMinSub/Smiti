@@ -11,17 +11,17 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class ChatMessage {
-    private static final String TAG = "ChatMessage"; // 로그 태그
+    private static final String TAG = "ChatMessage";
 
     private String type;        // 메시지 타입 ("message", "file" 등)
     private String senderId;    // 발신자 이메일 주소
     private String senderName;  // 발신자 이름
     private String content;     // 메시지 내용
-    private String timestamp;   // 서버가 생성한 타임스탬프 (ISO 8601 문자열 예상, KST 기준?)
+    private String timestamp;   // 서버가 생성한 타임스탬프
     private String groupId;     // 그룹 ID
     private String fileUrl;     // 첨부 파일 URL
     private String fileType;    // 첨부 파일 타입 ("image", "document" 등)
-    private String localId;     // 클라이언트에서 생성한 고유 메시지 ID (에코 확인용)
+    private String localId;     // 클라이언트에서 생성한 고유 메시지 ID
 
     // Getters and Setters
     public String getLocalId() { return localId; }
@@ -47,7 +47,7 @@ public class ChatMessage {
     public ChatMessage() {
     }
 
-    // 텍스트 메시지 생성자 (클라이언트 -> 서버)
+    // 텍스트 메시지 생성자
     public ChatMessage(String senderId, String senderName, String content) {
         this.type = "message";
         this.senderId = senderId;
@@ -55,9 +55,9 @@ public class ChatMessage {
         this.content = content;
     }
 
-    // 파일 메시지 생성자 (클라이언트 -> 서버)
+    // 파일 메시지 생성자 - 타입을 "file"로 고정
     public ChatMessage(String senderId, String senderName, String content, String fileUrl, String fileType) {
-        this.type = "file";
+        this.type = "file";  // 중요: 파일 메시지는 반드시 "file" 타입
         this.senderId = senderId;
         this.senderName = senderName;
         this.content = content;
@@ -66,7 +66,7 @@ public class ChatMessage {
     }
 
     /**
-     * JSON 문자열로부터 ChatMessage 객체를 생성합니다. (서버 -> 클라이언트)
+     * JSON 문자열로부터 ChatMessage 객체를 생성합니다.
      */
     public static ChatMessage fromJson(String jsonString) throws JSONException {
         JSONObject json;
@@ -78,7 +78,7 @@ public class ChatMessage {
         }
 
         ChatMessage message = new ChatMessage();
-        Log.d(TAG, "수신된 JSON (KST 시간 예상): " + jsonString); // 로그 메시지 수정
+        Log.d(TAG, "수신된 JSON: " + jsonString);
 
         try {
             message.type = json.optString("type", "message");
@@ -91,6 +91,13 @@ public class ChatMessage {
             message.fileType = json.optString("file_type", json.optString("fileType", ""));
             message.localId = json.optString("localId", json.optString("localID", null));
 
+            // 파일 URL이 있으면 자동으로 파일 타입으로 설정
+            if (message.fileUrl != null && !message.fileUrl.isEmpty() && 
+                (message.type == null || message.type.equals("message") || message.type.equals("text"))) {
+                Log.w(TAG, "파일 URL이 있지만 타입이 '" + message.type + "'입니다. 'file'로 수정합니다.");
+                message.type = "file";
+            }
+
             if (message.senderName == null || message.senderName.trim().isEmpty()) {
                 if (message.senderId != null && !message.senderId.isEmpty()) {
                     message.senderName = message.senderId;
@@ -98,9 +105,10 @@ public class ChatMessage {
                     message.senderName = "알 수 없음";
                 }
             }
-            Log.d(TAG, "최종 파싱 메시지 (KST 시간 예상): senderId=[" + message.senderId +
-                    "], timestamp=[" + message.timestamp + "]");
-
+            
+            Log.d(TAG, "최종 파싱 메시지: senderId=[" + message.senderId +
+                    "], type=[" + message.type +
+                    "], fileUrl=[" + (message.fileUrl != null ? message.fileUrl : "없음") + "]");
 
         } catch (Exception e) {
             Log.e(TAG, "JSON 파싱 중 예기치 않은 오류", e);
@@ -110,7 +118,7 @@ public class ChatMessage {
     }
 
     /**
-     * ChatMessage 객체를 JSON 문자열로 변환합니다. (클라이언트 -> 서버)
+     * ChatMessage 객체를 JSON 문자열로 변환합니다.
      */
     public String toJson() {
         JSONObject json = new JSONObject();
@@ -119,7 +127,6 @@ public class ChatMessage {
             json.put("sender_id", senderId);
             json.put("sender_name", senderName);
             json.put("message", content);
-            // timestamp는 서버에서 추가
 
             if (groupId != null && !groupId.isEmpty()) {
                 json.put("group_id", groupId);
@@ -127,18 +134,21 @@ public class ChatMessage {
             if (localId != null && !localId.isEmpty()) {
                 json.put("localId", localId);
             }
-            if (type != null && type.equals("file")) {
+            
+            // 파일 메시지인 경우 파일 정보 추가
+            if ("file".equals(type)) {
                 if (fileUrl != null && !fileUrl.isEmpty()) {
                     json.put("file_url", fileUrl);
-                    // 서버에서 camelCase 형식도 지원하는 경우를 위해 추가
-                    json.put("fileUrl", fileUrl);
+                    json.put("fileUrl", fileUrl); // 서버 호환성을 위한 중복 키
                 }
                 if (fileType != null && !fileType.isEmpty()) {
                     json.put("file_type", fileType);
-                    // 서버에서 camelCase 형식도 지원하는 경우를 위해 추가
-                    json.put("fileType", fileType);
+                    json.put("fileType", fileType); // 서버 호환성을 위한 중복 키
                 }
+                
+                Log.d(TAG, "파일 메시지 JSON 생성: type=file, fileUrl=" + fileUrl + ", fileType=" + fileType);
             }
+            
             return json.toString();
         } catch (JSONException e) {
             Log.e(TAG, "JSON 생성 오류", e);
@@ -151,9 +161,8 @@ public class ChatMessage {
      */
     public Message toUIMessage() {
         long timeInMillis = parseServerTimestamp(this.timestamp);
-        Log.d(TAG, "UI 메시지 변환 (KST 시간 파싱 가정): parsedTimestamp=" + timeInMillis); // 로그 메시지 수정
 
-        if (this.type != null && this.type.equals("file") && this.fileUrl != null && !this.fileUrl.isEmpty()) {
+        if ("file".equals(this.type) && this.fileUrl != null && !this.fileUrl.isEmpty()) {
             return new Message(senderId, senderName, content, timeInMillis, fileUrl, fileType);
         } else {
             return new Message(senderId, senderName, content, timeInMillis);
@@ -161,10 +170,7 @@ public class ChatMessage {
     }
 
     /**
-     * 서버에서 받은 타임스탬프 문자열(ISO 8601 형식, KST 기준 예상)을 long 타입 밀리초로 파싱합니다.
-     *
-     * @param timestamp 서버에서 받은 타임스탬프 문자열 (예: "2025-04-28T11:03:13.026182")
-     * @return 파싱된 밀리초 값 (long, UTC 기준). 실패 시 현재 시간 반환.
+     * 서버에서 받은 타임스탬프 문자열을 long 타입 밀리초로 파싱합니다.
      */
     private long parseServerTimestamp(String timestamp) {
         if (timestamp == null || timestamp.isEmpty()) {
@@ -172,29 +178,23 @@ public class ChatMessage {
             return System.currentTimeMillis();
         }
         try {
-            // 서버에서 보내는 형식에 맞는 포맷 지정 (마이크로초 6자리)
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.getDefault());
-            // *** 서버 시간이 KST 기준이라고 가정하고 파싱 ***
-            sdf.setTimeZone(TimeZone.getTimeZone("Asia/Seoul")); // KST 기준 파싱
+            sdf.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
             Date date = sdf.parse(timestamp);
-            // Date.getTime()은 항상 UTC 기준 밀리초를 반환함.
             return date.getTime();
         } catch (ParseException e) {
-            // .SSS (밀리초 3자리) 형식 시도
             try {
                 SimpleDateFormat sdfMillis = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.getDefault());
-                // *** 서버 시간이 KST 기준이라고 가정하고 파싱 ***
-                sdfMillis.setTimeZone(TimeZone.getTimeZone("Asia/Seoul")); // KST 기준 파싱
+                sdfMillis.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
                 Date dateMillis = sdfMillis.parse(timestamp);
-                Log.w(TAG,"Timestamp 파싱 성공 (.SSS 형식, KST 가정): " + timestamp);
                 return dateMillis.getTime();
             } catch (ParseException e2) {
-                Log.e(TAG, "서버 Timestamp (ISO 8601, KST 가정) 파싱 오류: " + timestamp + ". 현재 시간 사용.", e);
-                return System.currentTimeMillis(); // 최종 실패 시 현재 시간 반환
+                Log.e(TAG, "서버 Timestamp 파싱 오류: " + timestamp + ". 현재 시간 사용.", e);
+                return System.currentTimeMillis();
             }
         } catch (Exception e) {
             Log.e(TAG, "서버 Timestamp 파싱 중 알 수 없는 오류: " + timestamp + ". 현재 시간 사용.", e);
-            return System.currentTimeMillis(); // 그 외 예외 발생 시 현재 시간 반환
+            return System.currentTimeMillis();
         }
     }
 }
