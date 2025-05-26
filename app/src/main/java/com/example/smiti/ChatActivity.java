@@ -1,10 +1,15 @@
 package com.example.smiti;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,14 +27,19 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
 import com.example.smiti.repository.MessageRepository;
+import com.example.smiti.adapter.MemberAdapter;
+import com.example.smiti.model.User;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -75,6 +85,13 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     private ImageButton attachButton;
     private BottomNavigationView bottomNavigationView;
     private View rootView;
+    
+    // 사이드바 관련 변수들
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private RecyclerView membersRecyclerView;
+    private MemberAdapter memberAdapter;
+    private List<User> memberList;
 
     private MessageAdapter messageAdapter;
     private List<Message> messageList;
@@ -85,6 +102,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
 
     private WebSocketService webSocketService;
     private boolean isConnectionMessageShown = false;
+    
+    // 네트워크 상태 관련 변수들
+    private boolean wasOffline = false;
+    private BroadcastReceiver networkReceiver;
 
     // 파일 선택 결과를 처리하는 런처
     private final ActivityResultLauncher<String> getContent = registerForActivityResult(
@@ -109,6 +130,11 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     private Set<String> sentMessageIds = new HashSet<>();
 
     private MessageRepository messageRepository; // 메시지 저장소
+    
+    // 메시지 동기화 관련 변수들
+    private android.os.Handler syncHandler;
+    private Runnable syncRunnable;
+    private static final long SYNC_INTERVAL = 30000; // 30초마다 동기화
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -162,6 +188,12 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
 
             // 파일 다운로드를 위한 권한 체크
             checkStoragePermission();
+            
+            // 네트워크 상태 감지 설정
+            setupNetworkReceiver();
+            
+            // 정기적인 메시지 동기화 설정
+            setupPeriodicSync();
 
         } catch (Exception e) {
             Log.e(TAG, "onCreate 오류", e);
@@ -184,16 +216,16 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                         Log.d(TAG, "저장된 메시지 " + messages.size() + "개 로드됨");
                     }
                     
-                    // 저장된 메시지 로드 완료 후 웹소켓 연결
-                    initWebSocket();
+                    // 저장된 메시지 로드 완료 후 서버에서 최신 메시지 동기화
+                    syncMessagesFromServer();
                 });
             }
 
             @Override
             public void onError(String error) {
                 Log.e(TAG, "저장된 메시지 로드 실패: " + error);
-                // 메시지 로드 실패해도 웹소켓은 연결
-                runOnUiThread(() -> initWebSocket());
+                // 메시지 로드 실패해도 동기화 시도
+                runOnUiThread(() -> syncMessagesFromServer());
             }
         });
     }
@@ -242,13 +274,19 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     @Override
     protected void onResume() {
         super.onResume();
-        // 앱이 다시 활성화될 때 웹소켓 연결 확인 및 재연결 시도
+        // 앱이 다시 활성화될 때 메시지 동기화 및 웹소켓 연결 확인
         try {
+            // 먼저 놓친 메시지들을 동기화
+            if (isNetworkConnected()) {
+                forceSyncMessages();
+            }
+            
+            // 웹소켓 연결 확인 및 재연결 시도
             if (webSocketService != null && !webSocketService.isConnected()) {
                 webSocketService.connect(currentGroupId, currentUserEmail, this);
             }
         } catch (Exception e) {
-            Log.e(TAG, "웹소켓 재연결 오류", e);
+            Log.e(TAG, "앱 재시작 시 오류", e);
             Toast.makeText(this, "채팅 재연결 실패", Toast.LENGTH_SHORT).show();
         }
     }
@@ -263,6 +301,16 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         if (messageRepository != null) {
             messageRepository.cleanup();
         }
+        // 네트워크 리시버 해제
+        if (networkReceiver != null) {
+            try {
+                unregisterReceiver(networkReceiver);
+            } catch (IllegalArgumentException e) {
+                // 이미 해제된 경우 무시
+            }
+        }
+        // 정기적 동기화 중지
+        stopPeriodicSync();
     }
 
     // 웹소켓 서비스 초기화 및 연결 시작
@@ -679,7 +727,12 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     @Override
     public void onDisconnect(int code, String reason) {
         runOnUiThread(() -> {
-            showSnackbar("서버 연결 종료: " + reason);
+            // ping/pong 타임아웃으로 인한 연결 끊김은 사용자에게 알리지 않음
+            if (!reason.contains("pong in time")) {
+                showSnackbar("서버 연결 종료: " + reason);
+            } else {
+                Log.d(TAG, "웹소켓 ping/pong 타임아웃으로 연결 종료됨 (자동 재연결 시도 중)");
+            }
             isConnectionMessageShown = false;
         });
     }
@@ -774,6 +827,17 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         sendButton = findViewById(R.id.send_button);
         attachButton = findViewById(R.id.attach_button);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        
+        // 사이드바 관련 뷰 초기화
+        drawerLayout = findViewById(R.id.drawer_layout);
+        navigationView = findViewById(R.id.nav_view);
+        membersRecyclerView = findViewById(R.id.members_recycler_view);
+        
+        // 멤버 목록 초기화
+        memberList = new ArrayList<>();
+        memberAdapter = new MemberAdapter(memberList);
+        membersRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        membersRecyclerView.setAdapter(memberAdapter);
     }
     
     private void setupListeners() {
@@ -783,6 +847,20 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         ImageButton summaryButton = findViewById(R.id.summary_button);
         if (summaryButton != null) {
             summaryButton.setOnClickListener(v -> requestChatSummary());
+        }
+        
+        // 햄버거 메뉴 버튼 리스너
+        ImageButton menuButton = findViewById(R.id.menu_button);
+        if (menuButton != null) {
+            menuButton.setOnClickListener(v -> {
+                if (drawerLayout.isDrawerOpen(navigationView)) {
+                    drawerLayout.closeDrawer(navigationView);
+                } else {
+                    drawerLayout.openDrawer(navigationView);
+                    // 사이드바가 열릴 때 멤버 목록 로드
+                    loadGroupMembers();
+                }
+            });
         }
     }
 
@@ -806,5 +884,294 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             }
         });
         builder.show();
+    }
+    
+    // 서버에서 최신 메시지 동기화 (웹소켓 연결과 독립적으로 실행)
+    private void syncMessagesFromServer() {
+        // 마지막으로 저장된 메시지의 타임스탬프 가져오기
+        String lastTimestamp = getLastMessageTimestamp();
+        
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .build();
+        
+        // 그룹의 메시지 히스토리를 가져오는 API 호출
+        String url = BASE_URL + "/groups/" + currentGroupId + "/messages";
+        if (lastTimestamp != null && !lastTimestamp.isEmpty()) {
+            url += "?since=" + lastTimestamp;
+        }
+        
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "메시지 동기화 실패", e);
+                // 동기화 실패 시 웹소켓 연결 시도 (첫 로드 시에만)
+                if (messageList.isEmpty()) {
+                    runOnUiThread(() -> initWebSocket());
+                }
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "메시지 동기화 응답: " + responseData);
+                        
+                        JSONObject jsonObject = new JSONObject(responseData);
+                        if (jsonObject.has("messages")) {
+                            JSONArray messagesArray = jsonObject.getJSONArray("messages");
+                            List<Message> newMessages = new ArrayList<>();
+                            
+                            for (int i = 0; i < messagesArray.length(); i++) {
+                                JSONObject messageObject = messagesArray.getJSONObject(i);
+                                Message message = parseMessageFromJson(messageObject);
+                                if (message != null && !isDuplicateMessage(message)) {
+                                    newMessages.add(message);
+                                }
+                            }
+                            
+                            if (!newMessages.isEmpty()) {
+                                runOnUiThread(() -> {
+                                    // 새 메시지들을 UI에 추가 (중복 체크 후)
+                                    for (Message message : newMessages) {
+                                        messageAdapter.addMessage(message);
+                                        // 데이터베이스에도 저장
+                                        messageRepository.saveMessage(currentGroupId, message);
+                                    }
+                                    recyclerView.scrollToPosition(messageList.size() - 1);
+                                    Log.d(TAG, "새 메시지 " + newMessages.size() + "개 동기화 완료");
+                                });
+                            }
+                            
+                            // 첫 로드 시에만 웹소켓 연결
+                            if (messageList.isEmpty() || webSocketService == null || !webSocketService.isConnected()) {
+                                runOnUiThread(() -> initWebSocket());
+                            }
+                        } else {
+                            // 첫 로드 시에만 웹소켓 연결
+                            if (messageList.isEmpty()) {
+                                runOnUiThread(() -> initWebSocket());
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "메시지 동기화 응답 파싱 오류", e);
+                        if (messageList.isEmpty()) {
+                            runOnUiThread(() -> initWebSocket());
+                        }
+                    }
+                } else {
+                    Log.e(TAG, "메시지 동기화 서버 오류: " + response.code());
+                    if (messageList.isEmpty()) {
+                        runOnUiThread(() -> initWebSocket());
+                    }
+                }
+            }
+        });
+    }
+    
+    // 마지막 메시지의 타임스탬프 가져오기
+    private String getLastMessageTimestamp() {
+        if (messageList != null && !messageList.isEmpty()) {
+            Message lastMessage = messageList.get(messageList.size() - 1);
+            return String.valueOf(lastMessage.getTimestamp());
+        }
+        return null;
+    }
+    
+    // JSON에서 Message 객체로 파싱
+    private Message parseMessageFromJson(JSONObject messageObject) {
+        try {
+            String senderId = messageObject.optString("sender_id", "");
+            String senderName = messageObject.optString("sender_name", "알 수 없음");
+            String content = messageObject.optString("content", "");
+            String timestamp = messageObject.optString("timestamp", "");
+            String fileUrl = messageObject.optString("file_url", "");
+            String fileType = messageObject.optString("file_type", "");
+            
+            Message message = new Message(senderId, senderName, content, timestamp);
+            if (!fileUrl.isEmpty()) {
+                message.setFileUrl(fileUrl);
+                message.setFileType(fileType);
+            }
+            
+            return message;
+        } catch (Exception e) {
+            Log.e(TAG, "메시지 파싱 오류", e);
+            return null;
+        }
+    }
+    
+    // 중복 메시지 체크 (타임스탬프와 발신자, 내용으로 판단)
+    private boolean isDuplicateMessage(Message newMessage) {
+        if (messageList == null || messageList.isEmpty()) {
+            return false;
+        }
+        
+        for (Message existingMessage : messageList) {
+            if (existingMessage.getTimestamp() == newMessage.getTimestamp() &&
+                existingMessage.getSenderId().equals(newMessage.getSenderId()) &&
+                existingMessage.getMessage().equals(newMessage.getMessage())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 그룹 멤버 목록을 로드하는 메소드
+    private void loadGroupMembers() {
+        OkHttpClient client = new OkHttpClient();
+        String url = BASE_URL + "/groups/" + currentGroupId + "/users";
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "그룹 멤버 조회 실패", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(ChatActivity.this, "멤버 목록을 불러올 수 없습니다", Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "그룹 멤버 응답: " + responseData);
+                        
+                        JSONObject jsonObject = new JSONObject(responseData);
+                        if (jsonObject.has("users")) {
+                            JSONArray usersArray = jsonObject.getJSONArray("users");
+                            List<User> members = new ArrayList<>();
+                            
+                            for (int i = 0; i < usersArray.length(); i++) {
+                                JSONObject userObject = usersArray.getJSONObject(i);
+                                String name = userObject.optString("name", "알 수 없음");
+                                String email = userObject.optString("email", "");
+                                String smbti = userObject.optString("smbti", "");
+                                
+                                members.add(new User(name, email, smbti));
+                            }
+                            
+                            runOnUiThread(() -> {
+                                memberList.clear();
+                                memberList.addAll(members);
+                                memberAdapter.updateMembers(memberList);
+                                Log.d(TAG, "멤버 목록 업데이트 완료: " + members.size() + "명");
+                            });
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "그룹 멤버 응답 파싱 오류", e);
+                        runOnUiThread(() -> {
+                            Toast.makeText(ChatActivity.this, "멤버 정보 처리 중 오류 발생", Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                } else {
+                    Log.e(TAG, "그룹 멤버 조회 서버 오류: " + response.code());
+                    runOnUiThread(() -> {
+                        Toast.makeText(ChatActivity.this, "서버 오류: " + response.code(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }
+        });
+    }
+    
+    // 네트워크 상태 감지 설정
+    private void setupNetworkReceiver() {
+        networkReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
+                    boolean isConnected = isNetworkConnected();
+                    
+                    if (isConnected && wasOffline) {
+                        // 오프라인에서 온라인으로 전환된 경우
+                        Log.d(TAG, "네트워크 연결 복구됨 - 메시지 동기화 시작");
+                        wasOffline = false;
+                        
+                        // 잠시 후 동기화 실행 (네트워크 안정화 대기)
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            // 오프라인 중 놓친 메시지들을 동기화
+                            forceSyncMessages();
+                            
+                            // 웹소켓 재연결 시도
+                            if (webSocketService == null || !webSocketService.isConnected()) {
+                                initWebSocket();
+                            }
+                        }, 2000);
+                        
+                    } else if (!isConnected) {
+                        // 온라인에서 오프라인으로 전환된 경우
+                        Log.d(TAG, "네트워크 연결 끊어짐");
+                        wasOffline = true;
+                        if (webSocketService != null) {
+                            webSocketService.disconnect();
+                        }
+                    }
+                }
+            }
+        };
+        
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(networkReceiver, filter);
+        
+        // 초기 네트워크 상태 확인
+        wasOffline = !isNetworkConnected();
+    }
+    
+    // 네트워크 연결 상태 확인
+    private boolean isNetworkConnected() {
+        ConnectivityManager connectivityManager = 
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
+        return false;
+    }
+    
+    // 정기적인 메시지 동기화 설정
+    private void setupPeriodicSync() {
+        syncHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        syncRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // 네트워크가 연결되어 있을 때만 동기화 실행
+                if (isNetworkConnected()) {
+                    syncMessagesFromServer();
+                }
+                // 다음 동기화 예약
+                syncHandler.postDelayed(this, SYNC_INTERVAL);
+            }
+        };
+        // 첫 번째 동기화 시작
+        syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL);
+    }
+    
+    // 정기적인 메시지 동기화 중지
+    private void stopPeriodicSync() {
+        if (syncHandler != null && syncRunnable != null) {
+            syncHandler.removeCallbacks(syncRunnable);
+        }
+    }
+    
+    // 즉시 메시지 동기화 실행 (수동 호출용)
+    private void forceSyncMessages() {
+        if (isNetworkConnected()) {
+            syncMessagesFromServer();
+        } else {
+            showSnackbar("네트워크 연결을 확인해주세요");
+        }
     }
 }
