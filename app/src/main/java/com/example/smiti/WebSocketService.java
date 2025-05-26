@@ -14,11 +14,15 @@ import org.json.JSONObject;
 public class WebSocketService {
     private static final String TAG = "WebSocketService";
     private static final String WS_BASE_URL = "ws://202.31.246.51:80/ws";
-    private static final int CONNECTION_TIMEOUT = 10; // 10초 타임아웃
+    private static final int CONNECTION_TIMEOUT = 60; // 60초로 증가
+    private static final int RECONNECT_DELAY = 3000; // 3초 후 재연결
     
     private WebSocketClient webSocketClient;
     private WebSocketListener listener;
     private boolean isConnecting = false;
+    private boolean shouldReconnect = true;
+    private String lastGroupId;
+    private String lastUserEmail;
     
     // 웹소켓 메시지 리스너 인터페이스
     public interface WebSocketListener {
@@ -31,6 +35,9 @@ public class WebSocketService {
     // 웹소켓 연결
     public void connect(String groupId, String userEmail, WebSocketListener listener) {
         this.listener = listener;
+        this.lastGroupId = groupId;
+        this.lastUserEmail = userEmail;
+        this.shouldReconnect = true;
         
         // 이미 연결 중이면 중복 호출 방지
         if (isConnecting) {
@@ -108,8 +115,20 @@ public class WebSocketService {
                 
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
-                    Log.d(TAG, "웹소켓 연결 종료: " + reason);
+                    Log.d(TAG, "웹소켓 연결 종료: " + reason + " (코드: " + code + ", 원격: " + remote + ")");
                     isConnecting = false;
+                    
+                    // 자동 재연결 시도 (의도적 종료가 아닌 경우)
+                    if (shouldReconnect && remote) {
+                        Log.d(TAG, "자동 재연결 시도 예약 (" + RECONNECT_DELAY + "ms 후)");
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            if (shouldReconnect && WebSocketService.this.listener != null) {
+                                Log.d(TAG, "자동 재연결 시도");
+                                WebSocketService.this.connect(lastGroupId, lastUserEmail, WebSocketService.this.listener);
+                            }
+                        }, RECONNECT_DELAY);
+                    }
+                    
                     if (listener != null) {
                         listener.onDisconnect(code, reason);
                     }
@@ -125,7 +144,7 @@ public class WebSocketService {
                 }
             };
             
-            // 연결 타임아웃 설정
+            // 연결 타임아웃 설정 (60초로 증가)
             webSocketClient.setConnectionLostTimeout(CONNECTION_TIMEOUT);
             
             // 웹소켓 연결 시작
@@ -178,6 +197,7 @@ public class WebSocketService {
     
     // 연결 종료
     public void disconnect() {
+        shouldReconnect = false; // 자동 재연결 비활성화
         if (webSocketClient != null) {
             try {
                 webSocketClient.close();
