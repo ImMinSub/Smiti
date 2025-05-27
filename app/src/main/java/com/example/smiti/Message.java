@@ -11,6 +11,8 @@ public class Message {
     private long timestamp;  // 타임스탬프를 long 타입으로 변경 
     private String fileUrl;
     private String fileType; // "image", "document", etc.
+    private String groupId; // 그룹 ID 추가
+    private String messageType; // 메시지 타입 추가 ("text", "file", etc.)
     
     // 기본 생성자 (Firebase 등의 데이터베이스에서 필요)
     public Message() {
@@ -154,5 +156,33 @@ public class Message {
     
     public boolean hasFile() {
         return fileUrl != null && !fileUrl.isEmpty();
+    }
+    
+    // 그룹 ID getter/setter
+    public String getGroupId() {
+        return groupId;
+    }
+    
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
+    }
+    
+    // 메시지 타입 getter/setter
+    public String getMessageType() {
+        return messageType;
+    }
+    
+    public void setMessageType(String messageType) {
+        this.messageType = messageType;
+    }
+    
+    // 메시지 내용 설정 (MessageSyncManager에서 사용)
+    public void setContent(String content) {
+        this.message = cleanMessage(content, this.senderName);
+    }
+    
+    // 메시지 내용 가져오기 (MessageSyncManager에서 사용)
+    public String getContent() {
+        return this.message;
     }
 } 
