@@ -7,4 +7,10 @@
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
     <color name="admin_indicator_color">#D32F2F</color>
+    
+    <!-- SMBTI 테스트 카드 색상 -->
+    <color name="option_a_default">#B3D4F1</color>
+    <color name="option_a_selected">#57ABF9</color>
+    <color name="option_b_default">#E8D5B7</color>
+    <color name="option_b_selected">#F9BE57</color>
 </resources>
