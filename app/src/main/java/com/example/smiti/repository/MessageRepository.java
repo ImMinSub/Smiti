@@ -39,6 +39,14 @@ public class MessageRepository {
     }
     
     /**
+     * 메시지 저장 결과를 받기 위한 콜백 인터페이스
+     */
+    public interface SaveCallback {
+        void onSuccess();
+        void onError(String error);
+    }
+    
+    /**
      * 특정 그룹의 메시지를 비동기적으로 로드합니다.
      */
     public void loadMessagesForGroup(String groupId, MessageLoadCallback callback) {
@@ -82,6 +90,50 @@ public class MessageRepository {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "메시지 저장 실패: " + groupId, e);
+            }
+        });
+    }
+    
+    /**
+     * 새 메시지를 비동기적으로 저장합니다 (콜백 포함).
+     */
+    public void saveMessage(Message message, SaveCallback callback) {
+        executor.execute(() -> {
+            try {
+                String groupId = message.getGroupId();
+                if (groupId == null) {
+                    groupId = "default";
+                }
+                
+                long result = messageDatabase.insertMessage(groupId, message);
+                
+                if (result != -1) {
+                    // 메시지 수가 너무 많으면 오래된 메시지 정리
+                    int messageCount = messageDatabase.getMessageCountForGroup(groupId);
+                    if (messageCount > MAX_MESSAGES_PER_GROUP) {
+                        messageDatabase.deleteOldMessages(groupId, MAX_MESSAGES_PER_GROUP / 2);
+                        Log.d(TAG, "그룹 " + groupId + "의 오래된 메시지 정리됨");
+                    }
+                    
+                    mainHandler.post(() -> {
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
+                    });
+                } else {
+                    mainHandler.post(() -> {
+                        if (callback != null) {
+                            callback.onError("메시지 저장 실패");
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "메시지 저장 실패", e);
+                mainHandler.post(() -> {
+                    if (callback != null) {
+                        callback.onError("메시지 저장 실패: " + e.getMessage());
+                    }
+                });
             }
         });
     }
