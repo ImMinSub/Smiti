@@ -63,7 +63,7 @@
     </LinearLayout>
 
     <!-- 테스트 시작 버튼 -->
-    <Button
+    <android.widget.Button
         android:id="@+id/start_test_button"
         android:layout_width="match_parent"
         android:layout_height="56dp"
