@@ -94,8 +94,8 @@ public class MainActivity extends AppCompatActivity {
         
         // 버튼 클릭 이벤트 설정
         smitiTestBtn.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SmbtiTestActivity.class);
-            startActivityForResult(intent, REQUEST_SMBTI_TEST);
+            Intent intent = new Intent(MainActivity.this, SmbtiIntroActivity.class);
+            startActivity(intent);
         });
         adminBtn.setOnClickListener(v -> Toast.makeText(MainActivity.this, "관리 기능 실행", Toast.LENGTH_SHORT).show());
         chatTalkBtn.setOnClickListener(v -> {
