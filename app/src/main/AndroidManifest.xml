@@ -54,6 +54,9 @@
         <activity android:name=".MainActivity"
             android:exported="false" />
             
+        <activity android:name=".SmbtiIntroActivity"
+            android:exported="false" />
+            
         <activity android:name=".SmbtiTestActivity"
             android:exported="false" />
             
