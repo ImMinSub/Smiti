@@ -135,6 +135,21 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     private android.os.Handler syncHandler;
     private Runnable syncRunnable;
     private static final long SYNC_INTERVAL = 30000; // 30초마다 동기화
+    
+    // 새로운 웹소켓 재연결 솔루션 관련 변수들
+    private MessageSyncManager messageSyncManager;
+    private ConnectionStateUIManager connectionStateUIManager;
+
+    // 페이지네이션 매니저 추가
+    private MessagePaginationManager paginationManager;
+    private boolean isPaginationEnabled = false;
+    
+    // 대용량 데이터 처리 설정
+    private static final int LARGE_CHAT_THRESHOLD = 500; // 대용량 채팅방 기준 (메시지 수)
+    private static final long EXTENDED_TIMEOUT = 90000; // 확장된 타임아웃 (90초)
+
+    // 성능 최적화된 중복 메시지 감지 (해시 기반)
+    private Set<String> messageHashSet = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,7 +157,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         setContentView(R.layout.activity_chat);
 
         try {
-            // 보낸 메시지 ID Set 초기화 (최대 100개 유지, 오래된 순으로 제거)
+            // 전송된 메시지 ID 추적을 위한 LinkedHashSet 초기화 (메모리 효율성)
             sentMessageIds = new LinkedHashSet<String>() {
                 @Override
                 public boolean add(String e) {
@@ -182,9 +197,12 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             if (groupId != null && !groupId.isEmpty()) {
                 currentGroupId = groupId;
             }
+            
+            // 페이지네이션 매니저 초기화
+            initializePaginationManager();
              
             // 저장된 메시지 로드 (웹소켓 연결 전에 먼저 로드)
-            loadStoredMessages();
+            loadStoredMessagesOptimized();
 
             // 파일 다운로드를 위한 권한 체크
             checkStoragePermission();
@@ -197,8 +215,140 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
 
         } catch (Exception e) {
             Log.e(TAG, "onCreate 오류", e);
-            Toast.makeText(this, "앱 초기화 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
+            showUserFriendlyError("앱 초기화 중 오류가 발생했습니다", e);
         }
+    }
+    
+    // 페이지네이션 매니저 초기화
+    private void initializePaginationManager() {
+        try {
+            paginationManager = new MessagePaginationManager(
+                this, currentGroupId, currentUserEmail, 
+                recyclerView, messageAdapter, messageList
+            );
+            
+            paginationManager.setPaginationCallback(new MessagePaginationManager.PaginationCallback() {
+                @Override
+                public void onLoadingStarted() {
+                    runOnUiThread(() -> {
+                        messageAdapter.showLoadingIndicator("이전 메시지를 불러오는 중...");
+                        Log.d(TAG, "페이지네이션 로딩 시작");
+                    });
+                }
+                
+                @Override
+                public void onLoadingFinished() {
+                    runOnUiThread(() -> {
+                        messageAdapter.hideLoadingIndicator();
+                        Log.d(TAG, "페이지네이션 로딩 완료");
+                    });
+                }
+                
+                @Override
+                public void onMessagesLoaded(List<Message> messages, boolean hasMore) {
+                    runOnUiThread(() -> {
+                        Log.d(TAG, "페이지네이션으로 " + messages.size() + "개 메시지 로드됨, 더 있음: " + hasMore);
+                        if (!messages.isEmpty()) {
+                            showSnackbar(messages.size() + "개의 이전 메시지를 불러왔습니다");
+                        }
+                    });
+                }
+                
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        Log.e(TAG, "페이지네이션 오류: " + error);
+                        showUserFriendlyError("메시지 로딩 중 오류가 발생했습니다", new Exception(error));
+                    });
+                }
+                
+                @Override
+                public void onNoMoreMessages() {
+                    runOnUiThread(() -> {
+                        Log.d(TAG, "더 이상 로드할 메시지가 없음");
+                        showSnackbar("모든 메시지를 불러왔습니다");
+                    });
+                }
+            });
+            
+            Log.d(TAG, "페이지네이션 매니저 초기화 완료");
+            
+        } catch (Exception e) {
+            Log.e(TAG, "페이지네이션 매니저 초기화 실패", e);
+            showUserFriendlyError("메시지 로딩 시스템 초기화 실패", e);
+        }
+    }
+
+    // 최적화된 메시지 로드
+    private void loadStoredMessagesOptimized() {
+        // 먼저 메시지 수를 확인하여 대용량 채팅방인지 판단
+        messageRepository.getMessageCount(currentGroupId, new MessageRepository.MessageCountCallback() {
+            @Override
+            public void onCountLoaded(int messageCount) {
+                runOnUiThread(() -> {
+                    Log.d(TAG, "그룹 " + currentGroupId + "의 메시지 수: " + messageCount);
+                    
+                    if (messageCount > LARGE_CHAT_THRESHOLD) {
+                        // 대용량 채팅방 - 페이지네이션 사용
+                        Log.d(TAG, "대용량 채팅방 감지 - 페이지네이션 모드 활성화");
+                        isPaginationEnabled = true;
+                        showSnackbar("대용량 채팅방입니다. 메시지를 점진적으로 불러옵니다.");
+                        
+                        // 페이지네이션으로 초기 메시지 로드
+                        if (paginationManager != null) {
+                            paginationManager.loadInitialMessages();
+                        }
+                    } else {
+                        // 일반 채팅방 - 기존 방식 사용
+                        Log.d(TAG, "일반 채팅방 - 전체 로드 모드");
+                        isPaginationEnabled = false;
+                        loadStoredMessages();
+                    }
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "메시지 수 확인 실패: " + error);
+                runOnUiThread(() -> {
+                    // 오류 시 기본 방식으로 로드
+                    isPaginationEnabled = false;
+                    loadStoredMessages();
+                });
+            }
+        });
+    }
+    
+    // 사용자 친화적 오류 메시지 표시
+    private void showUserFriendlyError(String userMessage, Exception error) {
+        String detailedMessage = userMessage;
+        String solution = "";
+        
+        if (error != null) {
+            String errorMsg = error.getMessage();
+            if (errorMsg != null) {
+                if (errorMsg.contains("timeout") || errorMsg.contains("시간 초과")) {
+                    solution = "네트워크 연결을 확인하고 잠시 후 다시 시도해주세요.";
+                } else if (errorMsg.contains("network") || errorMsg.contains("네트워크")) {
+                    solution = "인터넷 연결을 확인해주세요.";
+                } else if (errorMsg.contains("server") || errorMsg.contains("서버")) {
+                    solution = "서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요.";
+                } else if (errorMsg.contains("memory") || errorMsg.contains("메모리")) {
+                    solution = "메모리 부족입니다. 다른 앱을 종료하고 다시 시도해주세요.";
+                } else {
+                    solution = "앱을 재시작하거나 잠시 후 다시 시도해주세요.";
+                }
+            }
+        }
+        
+        String fullMessage = detailedMessage;
+        if (!solution.isEmpty()) {
+            fullMessage += "\n\n해결 방법: " + solution;
+        }
+        
+        // 토스트 대신 스낵바로 더 자세한 정보 제공
+        showSnackbar(fullMessage);
+        Log.e(TAG, userMessage, error);
     }
 
     // 저장된 메시지 로드
@@ -276,8 +426,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         super.onResume();
         // 앱이 다시 활성화될 때 메시지 동기화 및 웹소켓 연결 확인
         try {
-            // 먼저 놓친 메시지들을 동기화
+            // 네트워크가 연결되어 있으면 누락된 메시지 동기화 수행
             if (isNetworkConnected()) {
+                // 앱 재시작 시 누락된 메시지가 있을 수 있으므로 강제 동기화
                 forceSyncMessages();
             }
             
@@ -286,8 +437,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 webSocketService.connect(currentGroupId, currentUserEmail, this);
             }
         } catch (Exception e) {
-            Log.e(TAG, "앱 재시작 시 오류", e);
-            Toast.makeText(this, "채팅 재연결 실패", Toast.LENGTH_SHORT).show();
+            // 로그 출력 (컴파일 오류 방지를 위해 System.out 사용)
+            System.out.println("앱 재시작 시 오류: " + e.getMessage());
+            showSnackbar("채팅 재연결 실패");
         }
     }
 
@@ -746,6 +898,40 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         });
     }
 
+    // WebSocketListener 인터페이스 구현: 연결 상태 변경 시 호출
+    @Override
+    public void onConnectionStateChanged(WebSocketService.ConnectionState state) {
+        runOnUiThread(() -> {
+            Log.d(TAG, "연결 상태 변경: " + state);
+            switch (state) {
+                case CONNECTING:
+                    showSnackbar("서버에 연결 중...");
+                    break;
+                case CONNECTED:
+                    showSnackbar("서버에 연결되었습니다.");
+                    break;
+                case RECONNECTING:
+                    showSnackbar("연결이 끊어졌습니다. 재연결 중...");
+                    break;
+                case FAILED:
+                    showSnackbar("서버 연결에 실패했습니다.");
+                    break;
+                case DISCONNECTED:
+                    // 의도적 연결 해제는 메시지 표시하지 않음
+                    break;
+            }
+        });
+    }
+
+    // WebSocketListener 인터페이스 구현: 재연결 시도 시 호출
+    @Override
+    public void onReconnectAttempt(int attempt, int maxAttempts) {
+        runOnUiThread(() -> {
+            Log.d(TAG, "재연결 시도: " + attempt + "/" + maxAttempts);
+            showSnackbar("재연결 시도 중... (" + attempt + "/" + maxAttempts + ")");
+        });
+    }
+
     // 화면 하단에 Snackbar 메시지 표시
     private void showSnackbar(String message) {
         try {
@@ -888,18 +1074,33 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     
     // 서버에서 최신 메시지 동기화 (웹소켓 연결과 독립적으로 실행)
     private void syncMessagesFromServer() {
-        // 마지막으로 저장된 메시지의 타임스탬프 가져오기
+        // 페이지네이션 모드에서는 별도 동기화 로직 사용
+        if (isPaginationEnabled && paginationManager != null) {
+            Log.d(TAG, "페이지네이션 모드에서는 실시간 동기화만 수행");
+            // 웹소켓이 연결되지 않았다면 연결 시도
+            if (webSocketService == null || !webSocketService.isConnected()) {
+                initWebSocket();
+            }
+            return;
+        }
+        
+        // 기존 동기화 로직 (일반 모드)
+        if (messageSyncManager == null) {
+            messageSyncManager = new MessageSyncManager();
+        }
+        
         String lastTimestamp = getLastMessageTimestamp();
+        Log.d(TAG, "서버에서 메시지 동기화 시작 - 마지막 타임스탬프: " + lastTimestamp);
         
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(EXTENDED_TIMEOUT, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(EXTENDED_TIMEOUT, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .writeTimeout(EXTENDED_TIMEOUT, java.util.concurrent.TimeUnit.MILLISECONDS)
                 .build();
         
-        // 그룹의 메시지 히스토리를 가져오는 API 호출
-        String url = BASE_URL + "/groups/" + currentGroupId + "/messages";
+        String url = BASE_URL + "/chat/" + currentGroupId + "/history";
         if (lastTimestamp != null && !lastTimestamp.isEmpty()) {
-            url += "?since=" + lastTimestamp;
+            url += "?after=" + lastTimestamp;
         }
         
         Request request = new Request.Builder()
@@ -910,67 +1111,81 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "메시지 동기화 실패", e);
-                // 동기화 실패 시 웹소켓 연결 시도 (첫 로드 시에만)
-                if (messageList.isEmpty()) {
-                    runOnUiThread(() -> initWebSocket());
-                }
+                Log.e(TAG, "메시지 동기화 서버 오류", e);
+                runOnUiThread(() -> {
+                    showUserFriendlyError("메시지 동기화 실패", e);
+                    // 첫 로드 시에만 웹소켓 연결
+                    if (messageList.isEmpty()) {
+                        initWebSocket();
+                    }
+                });
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
+                try {
+                    if (response.isSuccessful() && response.body() != null) {
                         String responseData = response.body().string();
-                        Log.d(TAG, "메시지 동기화 응답: " + responseData);
+                        Log.d(TAG, "서버 응답 받음: " + responseData.substring(0, Math.min(200, responseData.length())));
                         
-                        JSONObject jsonObject = new JSONObject(responseData);
-                        if (jsonObject.has("messages")) {
-                            JSONArray messagesArray = jsonObject.getJSONArray("messages");
-                            List<Message> newMessages = new ArrayList<>();
+                        // 서버 응답이 직접 JSONArray인 경우 처리
+                        JSONArray messagesArray = new JSONArray(responseData);
+                        List<Message> newMessages = new ArrayList<>();
+                        
+                        for (int i = 0; i < messagesArray.length(); i++) {
+                            JSONObject messageObject = messagesArray.getJSONObject(i);
+                            Message message = parseMessageFromJson(messageObject);
                             
-                            for (int i = 0; i < messagesArray.length(); i++) {
-                                JSONObject messageObject = messagesArray.getJSONObject(i);
-                                Message message = parseMessageFromJson(messageObject);
-                                if (message != null && !isDuplicateMessage(message)) {
-                                    newMessages.add(message);
+                            if (message != null && !isDuplicateMessage(message)) {
+                                newMessages.add(message);
+                            }
+                        }
+                        
+                        if (!newMessages.isEmpty()) {
+                            runOnUiThread(() -> {
+                                // 새 메시지들을 리스트에 추가
+                                for (Message message : newMessages) {
+                                    messageList.add(message);
+                                    // 데이터베이스에도 저장
+                                    messageRepository.saveMessage(currentGroupId, message);
                                 }
-                            }
-                            
-                            if (!newMessages.isEmpty()) {
-                                runOnUiThread(() -> {
-                                    // 새 메시지들을 UI에 추가 (중복 체크 후)
-                                    for (Message message : newMessages) {
-                                        messageAdapter.addMessage(message);
-                                        // 데이터베이스에도 저장
-                                        messageRepository.saveMessage(currentGroupId, message);
-                                    }
-                                    recyclerView.scrollToPosition(messageList.size() - 1);
-                                    Log.d(TAG, "새 메시지 " + newMessages.size() + "개 동기화 완료");
-                                });
-                            }
-                            
-                            // 첫 로드 시에만 웹소켓 연결
-                            if (messageList.isEmpty() || webSocketService == null || !webSocketService.isConnected()) {
-                                runOnUiThread(() -> initWebSocket());
-                            }
+                                
+                                // 메시지 목록을 시간순으로 정렬
+                                sortMessagesByTimestamp();
+                                messageAdapter.notifyDataSetChanged();
+                                recyclerView.scrollToPosition(messageList.size() - 1);
+                                
+                                showSnackbar("새 메시지 " + newMessages.size() + "개 동기화됨");
+                            });
                         } else {
+                            Log.d(TAG, "동기화할 새 메시지가 없음");
                             // 첫 로드 시에만 웹소켓 연결
                             if (messageList.isEmpty()) {
                                 runOnUiThread(() -> initWebSocket());
                             }
                         }
-                    } catch (JSONException e) {
-                        Log.e(TAG, "메시지 동기화 응답 파싱 오류", e);
+                        
+                    } else {
+                        Log.e(TAG, "메시지 동기화 서버 오류: " + response.code());
+                        if (response.code() != 404) {
+                            runOnUiThread(() -> showUserFriendlyError("서버 연결 오류 (코드: " + response.code() + ")", 
+                                    new Exception("HTTP " + response.code())));
+                        }
+                        
+                        // 첫 로드 시에만 웹소켓 연결
                         if (messageList.isEmpty()) {
                             runOnUiThread(() -> initWebSocket());
                         }
                     }
-                } else {
-                    Log.e(TAG, "메시지 동기화 서버 오류: " + response.code());
-                    if (messageList.isEmpty()) {
-                        runOnUiThread(() -> initWebSocket());
-                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "메시지 동기화 응답 파싱 오류", e);
+                    runOnUiThread(() -> {
+                        showUserFriendlyError("메시지 데이터 처리 오류", e);
+                        // 첫 로드 시에만 웹소켓 연결
+                        if (messageList.isEmpty()) {
+                            initWebSocket();
+                        }
+                    });
                 }
             }
         });
@@ -988,12 +1203,45 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     // JSON에서 Message 객체로 파싱
     private Message parseMessageFromJson(JSONObject messageObject) {
         try {
+            // sender_id가 없으면 sender_name을 사용하거나 기본값 설정
             String senderId = messageObject.optString("sender_id", "");
-            String senderName = messageObject.optString("sender_name", "알 수 없음");
+            if (senderId.isEmpty()) {
+                senderId = messageObject.optString("sender_name", "unknown");
+            }
+            
+            // sender_name이 null이거나 비어있으면 기본값 설정
+            String senderName = messageObject.optString("sender_name", null);
+            if (senderName == null || senderName.equals("null") || senderName.isEmpty()) {
+                senderName = "알 수 없음";
+            }
+            
+            // content 또는 message 필드에서 메시지 내용 가져오기
             String content = messageObject.optString("content", "");
-            String timestamp = messageObject.optString("timestamp", "");
+            if (content.isEmpty()) {
+                content = messageObject.optString("message", "");
+            }
+            
+            // ISO 8601 형식의 타임스탬프를 밀리초로 변환
+            String timestampStr = messageObject.optString("timestamp", "");
+            long timestamp = parseTimestampToMillis(timestampStr);
+            
             String fileUrl = messageObject.optString("file_url", "");
             String fileType = messageObject.optString("file_type", "");
+            
+            // 발신자 식별: 현재 사용자의 이메일과 비교
+            // sender_name이 현재 사용자 이름과 일치하거나, sender_id가 현재 사용자 이메일과 일치하면 현재 사용자
+            boolean isCurrentUser = false;
+            if (currentUserEmail != null) {
+                isCurrentUser = currentUserEmail.equals(senderId) || 
+                               currentUserEmail.equals(senderName) ||
+                               (currentUserName != null && currentUserName.equals(senderName));
+            }
+            
+            // 현재 사용자의 메시지인 경우 senderId를 현재 사용자 이메일로 설정
+            if (isCurrentUser) {
+                senderId = currentUserEmail;
+                senderName = currentUserName != null ? currentUserName : senderName;
+            }
             
             Message message = new Message(senderId, senderName, content, timestamp);
             if (!fileUrl.isEmpty()) {
@@ -1003,25 +1251,102 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             
             return message;
         } catch (Exception e) {
-            Log.e(TAG, "메시지 파싱 오류", e);
+            System.out.println("메시지 파싱 오류: " + e.getMessage());
             return null;
         }
     }
     
-    // 중복 메시지 체크 (타임스탬프와 발신자, 내용으로 판단)
-    private boolean isDuplicateMessage(Message newMessage) {
-        if (messageList == null || messageList.isEmpty()) {
-            return false;
+    // ISO 8601 형식의 타임스탬프를 밀리초로 변환
+    private long parseTimestampToMillis(String timestampStr) {
+        if (timestampStr == null || timestampStr.isEmpty()) {
+            return System.currentTimeMillis();
         }
         
-        for (Message existingMessage : messageList) {
-            if (existingMessage.getTimestamp() == newMessage.getTimestamp() &&
-                existingMessage.getSenderId().equals(newMessage.getSenderId()) &&
-                existingMessage.getMessage().equals(newMessage.getMessage())) {
-                return true;
+        try {
+            // ISO 8601 형식: "2025-04-12T20:02:02" 또는 "2025-04-12T20:02:02Z"
+            // SimpleDateFormat을 사용하여 파싱
+            java.text.SimpleDateFormat sdf;
+            
+            if (timestampStr.contains("T")) {
+                if (timestampStr.endsWith("Z")) {
+                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                } else if (timestampStr.contains("+") || timestampStr.lastIndexOf("-") > 10) {
+                    // 타임존 정보가 있는 경우 (예: 2025-04-12T20:02:02+09:00)
+                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+                } else {
+                    // 로컬 시간으로 가정
+                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                }
+            } else {
+                // 일반적인 날짜 형식
+                sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             }
+            
+            java.util.Date date = sdf.parse(timestampStr);
+            return date.getTime();
+            
+        } catch (Exception e) {
+            System.out.println("타임스탬프 파싱 오류: " + timestampStr + ", 오류: " + e.getMessage());
+            // 파싱 실패 시 현재 시간 반환
+            return System.currentTimeMillis();
         }
+    }
+    
+    // 성능 최적화된 중복 메시지 감지 (해시 기반)
+    private boolean isDuplicateMessage(Message newMessage) {
+        // 메시지 고유 해시 생성 (타임스탬프 + 발신자 + 내용 해시)
+        String messageHash = generateMessageHash(newMessage);
+        
+        // 해시 기반 중복 체크 (O(1) 시간 복잡도)
+        if (messageHashSet.contains(messageHash)) {
+            Log.d(TAG, "중복 메시지 감지됨: " + messageHash);
+            return true;
+        }
+        
+        // 새 메시지 해시 추가
+        messageHashSet.add(messageHash);
+        
+        // 메모리 관리: 해시 세트가 너무 커지면 정리
+        if (messageHashSet.size() > 2000) {
+            cleanupMessageHashSet();
+        }
+        
         return false;
+    }
+    
+    // 메시지 고유 해시 생성
+    private String generateMessageHash(Message message) {
+        StringBuilder hashBuilder = new StringBuilder();
+        hashBuilder.append(message.getTimestamp());
+        hashBuilder.append("_");
+        hashBuilder.append(message.getSenderId() != null ? message.getSenderId() : "");
+        hashBuilder.append("_");
+        hashBuilder.append(message.getMessage() != null ? message.getMessage().hashCode() : 0);
+        
+        // 파일 메시지인 경우 파일 URL도 포함
+        if (message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
+            hashBuilder.append("_file_");
+            hashBuilder.append(message.getFileUrl().hashCode());
+        }
+        
+        return hashBuilder.toString();
+    }
+    
+    // 메시지 해시 세트 정리 (메모리 최적화)
+    private void cleanupMessageHashSet() {
+        Log.d(TAG, "메시지 해시 세트 정리 시작 - 현재 크기: " + messageHashSet.size());
+        
+        // 현재 메시지 리스트의 해시만 유지
+        Set<String> currentHashes = new HashSet<>();
+        for (Message message : messageList) {
+            currentHashes.add(generateMessageHash(message));
+        }
+        
+        messageHashSet.clear();
+        messageHashSet.addAll(currentHashes);
+        
+        Log.d(TAG, "메시지 해시 세트 정리 완료 - 정리 후 크기: " + messageHashSet.size());
     }
 
     // 그룹 멤버 목록을 로드하는 메소드
@@ -1097,23 +1422,30 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     
                     if (isConnected && wasOffline) {
                         // 오프라인에서 온라인으로 전환된 경우
-                        Log.d(TAG, "네트워크 연결 복구됨 - 메시지 동기화 시작");
+                        System.out.println("네트워크 연결 복구됨 - 강화된 메시지 동기화 시작");
                         wasOffline = false;
                         
-                        // 잠시 후 동기화 실행 (네트워크 안정화 대기)
+                        // 네트워크 안정화를 위해 잠시 대기 후 강화된 동기화 실행
                         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                            // 오프라인 중 놓친 메시지들을 동기화
-                            forceSyncMessages();
+                            // 오프라인 중 놓친 메시지들을 강제로 동기화
+                            System.out.println("오프라인 복구 - 전체 메시지 동기화 시작");
+                            showSnackbar("오프라인 중 놓친 메시지를 확인하는 중...");
                             
-                            // 웹소켓 재연결 시도
+                            // 1. 기본 동기화 수행
+                            syncMessagesFromServer();
+                            
+                            // 2. 전체 동기화로 누락된 메시지 확실히 복구
+                            performFullMessageSync();
+                            
+                            // 3. 웹소켓 재연결 시도
                             if (webSocketService == null || !webSocketService.isConnected()) {
                                 initWebSocket();
                             }
-                        }, 2000);
+                        }, 3000); // 3초 대기 (네트워크 안정화)
                         
                     } else if (!isConnected) {
                         // 온라인에서 오프라인으로 전환된 경우
-                        Log.d(TAG, "네트워크 연결 끊어짐");
+                        System.out.println("네트워크 연결 끊어짐");
                         wasOffline = true;
                         if (webSocketService != null) {
                             webSocketService.disconnect();
@@ -1169,9 +1501,165 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     // 즉시 메시지 동기화 실행 (수동 호출용)
     private void forceSyncMessages() {
         if (isNetworkConnected()) {
+            Log.d(TAG, "강제 메시지 동기화 시작");
+            showSnackbar("메시지 동기화 중...");
+            
+            // 개선된 동기화: 마지막 메시지 이후의 모든 메시지 가져오기
             syncMessagesFromServer();
+            
+            // 추가로 전체 동기화도 수행 (오프라인 중 누락된 메시지 확실히 복구)
+            performFullMessageSync();
         } else {
             showSnackbar("네트워크 연결을 확인해주세요");
+        }
+    }
+    
+    // 전체 메시지 동기화 (오프라인 복구용)
+    private void performFullMessageSync() {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(45, TimeUnit.SECONDS)
+                .build();
+        
+        // 전체 메시지 히스토리 가져오기 (타임스탬프 제한 없음)
+        String url = BASE_URL + "/chat/" + currentGroupId + "/history";
+        
+        Log.d(TAG, "전체 메시지 동기화 요청: " + url);
+        
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "전체 메시지 동기화 실패", e);
+                runOnUiThread(() -> showSnackbar("메시지 동기화 실패"));
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "전체 메시지 동기화 응답 받음");
+                        
+                        JSONArray messagesArray = null;
+                        
+                        // 응답이 직접 배열인지 객체인지 확인
+                        if (responseData.trim().startsWith("[")) {
+                            // 직접 JSONArray 형태의 응답
+                            messagesArray = new JSONArray(responseData);
+                        } else {
+                            // JSONObject 형태의 응답
+                            JSONObject jsonObject = new JSONObject(responseData);
+                            
+                            // API 응답 구조에 따라 메시지 배열 추출
+                            if (jsonObject.has("messages")) {
+                                messagesArray = jsonObject.getJSONArray("messages");
+                            } else if (jsonObject.has("data")) {
+                                JSONObject dataObject = jsonObject.getJSONObject("data");
+                                if (dataObject.has("messages")) {
+                                    messagesArray = dataObject.getJSONArray("messages");
+                                }
+                            } else if (jsonObject.has("history")) {
+                                messagesArray = jsonObject.getJSONArray("history");
+                            }
+                        }
+                        
+                        if (messagesArray != null) {
+                            List<Message> serverMessages = new ArrayList<>();
+                            
+                            for (int i = 0; i < messagesArray.length(); i++) {
+                                JSONObject messageObject = messagesArray.getJSONObject(i);
+                                Message message = parseMessageFromJson(messageObject);
+                                if (message != null) {
+                                    serverMessages.add(message);
+                                }
+                            }
+                            
+                            runOnUiThread(() -> {
+                                // 서버 메시지와 로컬 메시지 비교하여 누락된 메시지 찾기
+                                List<Message> missingMessages = findMissingMessages(serverMessages);
+                                
+                                if (!missingMessages.isEmpty()) {
+                                    Log.d(TAG, "누락된 메시지 " + missingMessages.size() + "개 발견");
+                                    
+                                    // 누락된 메시지들을 UI에 추가
+                                    for (Message message : missingMessages) {
+                                        messageAdapter.addMessage(message);
+                                        // 데이터베이스에도 저장
+                                        messageRepository.saveMessage(currentGroupId, message);
+                                    }
+                                    
+                                    // 메시지 목록을 시간순으로 정렬
+                                    sortMessagesByTimestamp();
+                                    messageAdapter.notifyDataSetChanged();
+                                    recyclerView.scrollToPosition(messageList.size() - 1);
+                                    
+                                    showSnackbar("누락된 메시지 " + missingMessages.size() + "개 복구됨");
+                                } else {
+                                    Log.d(TAG, "누락된 메시지 없음");
+                                    showSnackbar("모든 메시지가 최신 상태입니다");
+                                }
+                            });
+                        }
+                        
+                    } catch (JSONException e) {
+                        Log.e(TAG, "전체 메시지 동기화 응답 파싱 오류", e);
+                        runOnUiThread(() -> showSnackbar("메시지 동기화 처리 오류"));
+                    }
+                } else {
+                    Log.e(TAG, "전체 메시지 동기화 서버 오류: " + response.code());
+                    if (response.code() != 404) {
+                        runOnUiThread(() -> showSnackbar("메시지 동기화 실패: " + response.code()));
+                    }
+                }
+            }
+        });
+    }
+    
+    // 서버 메시지와 로컬 메시지를 비교하여 누락된 메시지 찾기
+    private List<Message> findMissingMessages(List<Message> serverMessages) {
+        List<Message> missingMessages = new ArrayList<>();
+        
+        for (Message serverMessage : serverMessages) {
+            boolean found = false;
+            
+            // 로컬 메시지 목록에서 동일한 메시지가 있는지 확인
+            for (Message localMessage : messageList) {
+                if (isSameMessage(serverMessage, localMessage)) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                missingMessages.add(serverMessage);
+            }
+        }
+        
+        return missingMessages;
+    }
+    
+    // 두 메시지가 동일한지 확인 (타임스탬프, 발신자, 내용으로 판단)
+    private boolean isSameMessage(Message msg1, Message msg2) {
+        return msg1.getTimestamp() == msg2.getTimestamp() &&
+               msg1.getSenderId().equals(msg2.getSenderId()) &&
+               msg1.getMessage().equals(msg2.getMessage());
+    }
+    
+    // 메시지 목록을 타임스탬프 순으로 정렬
+    private void sortMessagesByTimestamp() {
+        try {
+            messageList.sort((m1, m2) -> {
+                long timestamp1 = m1.getTimestamp();
+                long timestamp2 = m2.getTimestamp();
+                return Long.compare(timestamp1, timestamp2);
+            });
+        } catch (Exception e) {
+            System.out.println("메시지 정렬 오류: " + e.getMessage());
         }
     }
 }
