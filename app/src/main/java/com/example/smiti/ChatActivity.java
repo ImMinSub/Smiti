@@ -249,6 +249,8 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     runOnUiThread(() -> {
                         Log.d(TAG, "페이지네이션으로 " + messages.size() + "개 메시지 로드됨, 더 있음: " + hasMore);
                         if (!messages.isEmpty()) {
+                            // 페이지네이션으로 로드된 메시지들을 상단에 추가 (날짜 구분선 포함)
+                            messageAdapter.addMessagesAtTop(messages);
                             showSnackbar(messages.size() + "개의 이전 메시지를 불러왔습니다");
                         }
                     });
@@ -839,7 +841,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         });
     }
 
-    // WebSocketListener 인터페이스 구현: 메시지 수신 시 호출
+    // WebSocketListener 인터페이스 구현: 메시지 수신 시 호출 - 스레드 안전 버전
     @Override
     public void onMessage(String rawJsonMessage) {
         try {
@@ -849,23 +851,81 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     "], fileUrl=[" + chatMessage.getFileUrl() + "]");
 
             String receivedLocalId = chatMessage.getLocalId();
-            boolean isEchoMessage = receivedLocalId != null && !receivedLocalId.isEmpty() && 
-                                   sentMessageIds.contains(receivedLocalId);
+            final boolean isEchoMessage; // final로 선언
             
-            if (isEchoMessage) {
-                Log.d(TAG, "내가 보낸 메시지(Echo) 감지");
-                sentMessageIds.remove(receivedLocalId);
+            // sentMessageIds 접근을 스레드 안전하게 처리
+            synchronized (sentMessageIds) {
+                isEchoMessage = receivedLocalId != null && !receivedLocalId.isEmpty() && 
+                               sentMessageIds.contains(receivedLocalId);
+                
+                if (isEchoMessage) {
+                    Log.d(TAG, "내가 보낸 메시지(Echo) 감지 - LocalId: " + receivedLocalId);
+                    sentMessageIds.remove(receivedLocalId);
+                }
             }
 
             runOnUiThread(() -> {
                 Message uiMessage = chatMessage.toUIMessage();
                 
-                // UI에 메시지 추가 (에코 메시지도 표시)
-                messageAdapter.addMessage(uiMessage);
-                recyclerView.scrollToPosition(messageList.size() - 1);
+                // 메시지 소유권 정확히 판단
+                boolean isMyMessage = isCurrentUserMessage(uiMessage.getSenderId(), uiMessage.getSenderName());
                 
-                // 데이터베이스에 저장 (중복 체크는 데이터베이스에서 처리)
-                messageRepository.saveMessage(currentGroupId, uiMessage);
+                Log.d(TAG, "=== 메시지 처리 상세 정보 ===");
+                Log.d(TAG, "수신된 메시지 발신자 ID: [" + uiMessage.getSenderId() + "]");
+                Log.d(TAG, "수신된 메시지 발신자 이름: [" + uiMessage.getSenderName() + "]");
+                Log.d(TAG, "현재 사용자 이메일: [" + currentUserEmail + "]");
+                Log.d(TAG, "Echo 메시지 여부: " + isEchoMessage);
+                Log.d(TAG, "내 메시지 판단 결과: " + isMyMessage);
+                Log.d(TAG, "LocalId: " + receivedLocalId);
+                
+                // Echo 메시지이거나 내가 보낸 메시지인 경우 발신자 정보 정규화
+                final Message finalUiMessage; // final 변수로 선언
+                if (isEchoMessage || isMyMessage) {
+                    // 내 메시지로 정규화
+                    finalUiMessage = new Message(currentUserEmail, currentUserName != null ? currentUserName : "나", 
+                                          uiMessage.getMessage(), uiMessage.getTimestamp());
+                    if (chatMessage.getFileUrl() != null && !chatMessage.getFileUrl().isEmpty()) {
+                        finalUiMessage.setFileUrl(chatMessage.getFileUrl());
+                        finalUiMessage.setFileType(chatMessage.getFileType());
+                    }
+                    Log.d(TAG, "내 메시지로 정규화 완료");
+                } else {
+                    finalUiMessage = uiMessage;
+                }
+                
+                // 강화된 중복 메시지 체크 - Echo 메시지는 항상 추가하되, 기존 메시지와 중복되면 제거
+                if (isEchoMessage) {
+                    // Echo 메시지인 경우: 기존에 동일한 메시지가 있으면 제거하고 새로 추가
+                    synchronized (messageList) {
+                        // 기존 메시지 중 동일한 내용의 메시지 제거
+                        messageList.removeIf(existingMessage -> 
+                            isSameMessageContent(existingMessage, uiMessage) && 
+                            Math.abs(existingMessage.getTimestamp() - uiMessage.getTimestamp()) < 10000); // 10초 이내
+                    }
+                    
+                    // Echo 메시지 추가
+                    messageAdapter.addMessage(uiMessage);
+                    synchronized (messageList) {
+                        recyclerView.scrollToPosition(messageList.size() - 1);
+                    }
+                    messageRepository.saveMessage(currentGroupId, uiMessage);
+                    Log.d(TAG, "Echo 메시지 처리 완료: " + uiMessage.getMessage().substring(0, Math.min(20, uiMessage.getMessage().length())));
+                    
+                } else if (!isDuplicateMessageEnhanced(uiMessage)) {
+                    // 일반 메시지: 중복이 아닌 경우에만 추가
+                    messageAdapter.addMessage(uiMessage);
+                    
+                    synchronized (messageList) {
+                        recyclerView.scrollToPosition(messageList.size() - 1);
+                    }
+                    
+                    messageRepository.saveMessage(currentGroupId, uiMessage);
+                    Log.d(TAG, "새 메시지 추가됨: 수신 - " + uiMessage.getMessage().substring(0, Math.min(20, uiMessage.getMessage().length())));
+                } else {
+                    Log.d(TAG, "중복 메시지 무시됨: " + uiMessage.getMessage().substring(0, Math.min(20, uiMessage.getMessage().length())));
+                }
+                
+                Log.d(TAG, "========================");
             });
 
         } catch (JSONException e) {
@@ -873,6 +933,31 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         } catch (Exception e) {
             Log.e(TAG, "메시지 처리 중 오류", e);
         }
+    }
+    
+    // 메시지 내용이 동일한지 확인하는 메서드 추가
+    private boolean isSameMessageContent(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
+        }
+        
+        // 메시지 내용 비교
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 파일 URL 비교 (있는 경우)
+        String fileUrl1 = msg1.getFileUrl();
+        String fileUrl2 = msg2.getFileUrl();
+        if (fileUrl1 != null) fileUrl1 = fileUrl1.trim();
+        if (fileUrl2 != null) fileUrl2 = fileUrl2.trim();
+        
+        return java.util.Objects.equals(fileUrl1, fileUrl2);
     }
 
     // WebSocketListener 인터페이스 구현: 연결 종료 시 호출
@@ -1072,7 +1157,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         builder.show();
     }
     
-    // 서버에서 최신 메시지 동기화 (웹소켓 연결과 독립적으로 실행)
+    // 서버에서 최신 메시지 동기화 (웹소켓 연결과 독립적으로 실행) - 스레드 안전 버전
     private void syncMessagesFromServer() {
         // 페이지네이션 모드에서는 별도 동기화 로직 사용
         if (isPaginationEnabled && paginationManager != null) {
@@ -1115,8 +1200,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 runOnUiThread(() -> {
                     showUserFriendlyError("메시지 동기화 실패", e);
                     // 첫 로드 시에만 웹소켓 연결
-                    if (messageList.isEmpty()) {
-                        initWebSocket();
+                    synchronized (messageList) {
+                        if (messageList.isEmpty()) {
+                            initWebSocket();
+                        }
                     }
                 });
             }
@@ -1136,22 +1223,25 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                             JSONObject messageObject = messagesArray.getJSONObject(i);
                             Message message = parseMessageFromJson(messageObject);
                             
-                            if (message != null && !isDuplicateMessage(message)) {
+                            if (message != null && !isDuplicateMessageEnhanced(message)) {
                                 newMessages.add(message);
                             }
                         }
                         
                         if (!newMessages.isEmpty()) {
                             runOnUiThread(() -> {
-                                // 새 메시지들을 리스트에 추가
-                                for (Message message : newMessages) {
-                                    messageList.add(message);
-                                    // 데이터베이스에도 저장
-                                    messageRepository.saveMessage(currentGroupId, message);
+                                // 새 메시지들을 리스트에 추가 (스레드 안전)
+                                synchronized (messageList) {
+                                    for (Message message : newMessages) {
+                                        messageList.add(message);
+                                        // 데이터베이스에도 저장
+                                        messageRepository.saveMessage(currentGroupId, message);
+                                    }
+                                    
+                                    // 메시지 목록을 시간순으로 정렬
+                                    sortMessagesByTimestamp();
                                 }
                                 
-                                // 메시지 목록을 시간순으로 정렬
-                                sortMessagesByTimestamp();
                                 messageAdapter.notifyDataSetChanged();
                                 recyclerView.scrollToPosition(messageList.size() - 1);
                                 
@@ -1160,8 +1250,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                         } else {
                             Log.d(TAG, "동기화할 새 메시지가 없음");
                             // 첫 로드 시에만 웹소켓 연결
-                            if (messageList.isEmpty()) {
-                                runOnUiThread(() -> initWebSocket());
+                            synchronized (messageList) {
+                                if (messageList.isEmpty()) {
+                                    runOnUiThread(() -> initWebSocket());
+                                }
                             }
                         }
                         
@@ -1173,8 +1265,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                         }
                         
                         // 첫 로드 시에만 웹소켓 연결
-                        if (messageList.isEmpty()) {
-                            runOnUiThread(() -> initWebSocket());
+                        synchronized (messageList) {
+                            if (messageList.isEmpty()) {
+                                runOnUiThread(() -> initWebSocket());
+                            }
                         }
                     }
                 } catch (JSONException e) {
@@ -1182,8 +1276,10 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                     runOnUiThread(() -> {
                         showUserFriendlyError("메시지 데이터 처리 오류", e);
                         // 첫 로드 시에만 웹소켓 연결
-                        if (messageList.isEmpty()) {
-                            initWebSocket();
+                        synchronized (messageList) {
+                            if (messageList.isEmpty()) {
+                                initWebSocket();
+                            }
                         }
                     });
                 }
@@ -1203,44 +1299,39 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
     // JSON에서 Message 객체로 파싱
     private Message parseMessageFromJson(JSONObject messageObject) {
         try {
-            // sender_id가 없으면 sender_name을 사용하거나 기본값 설정
+            // sender_id 처리 - 이메일 형태로 정규화
             String senderId = messageObject.optString("sender_id", "");
             if (senderId.isEmpty()) {
                 senderId = messageObject.optString("sender_name", "unknown");
             }
             
-            // sender_name이 null이거나 비어있으면 기본값 설정
+            // sender_name 처리
             String senderName = messageObject.optString("sender_name", null);
             if (senderName == null || senderName.equals("null") || senderName.isEmpty()) {
                 senderName = "알 수 없음";
             }
             
-            // content 또는 message 필드에서 메시지 내용 가져오기
+            // 메시지 내용 처리
             String content = messageObject.optString("content", "");
             if (content.isEmpty()) {
                 content = messageObject.optString("message", "");
             }
             
-            // ISO 8601 형식의 타임스탬프를 밀리초로 변환
+            // 타임스탬프 처리 - 서버에서 받은 정확한 시간 사용
             String timestampStr = messageObject.optString("timestamp", "");
-            long timestamp = parseTimestampToMillis(timestampStr);
+            long timestamp = parseTimestampToMillisFixed(timestampStr);
             
+            // 파일 정보 처리
             String fileUrl = messageObject.optString("file_url", "");
             String fileType = messageObject.optString("file_type", "");
             
-            // 발신자 식별: 현재 사용자의 이메일과 비교
-            // sender_name이 현재 사용자 이름과 일치하거나, sender_id가 현재 사용자 이메일과 일치하면 현재 사용자
-            boolean isCurrentUser = false;
-            if (currentUserEmail != null) {
-                isCurrentUser = currentUserEmail.equals(senderId) || 
-                               currentUserEmail.equals(senderName) ||
-                               (currentUserName != null && currentUserName.equals(senderName));
-            }
+            // 현재 사용자 메시지인지 정확히 판단
+            boolean isCurrentUser = isCurrentUserMessage(senderId, senderName);
             
-            // 현재 사용자의 메시지인 경우 senderId를 현재 사용자 이메일로 설정
+            // 현재 사용자 메시지인 경우 발신자 정보 정규화
             if (isCurrentUser) {
-                senderId = currentUserEmail;
-                senderName = currentUserName != null ? currentUserName : senderName;
+                senderId = currentUserEmail; // 현재 사용자 이메일로 통일
+                senderName = currentUserName != null ? currentUserName : "나"; // 현재 사용자 이름 사용
             }
             
             Message message = new Message(senderId, senderName, content, timestamp);
@@ -1249,106 +1340,333 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
                 message.setFileType(fileType);
             }
             
+            Log.d(TAG, "메시지 파싱: senderId=" + senderId + 
+                      ", senderName=" + senderName + 
+                      ", isCurrentUser=" + isCurrentUser +
+                      ", timestamp=" + timestamp +
+                      ", 시간=" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(timestamp)));
+            
             return message;
         } catch (Exception e) {
-            System.out.println("메시지 파싱 오류: " + e.getMessage());
+            Log.e(TAG, "메시지 파싱 오류", e);
             return null;
         }
     }
     
-    // ISO 8601 형식의 타임스탬프를 밀리초로 변환
-    private long parseTimestampToMillis(String timestampStr) {
+    // 현재 사용자 메시지인지 정확히 판단하는 메서드
+    private boolean isCurrentUserMessage(String senderId, String senderName) {
+        if (currentUserEmail == null || currentUserEmail.isEmpty()) {
+            Log.w(TAG, "현재 사용자 이메일이 설정되지 않음");
+            return false;
+        }
+        
+        // 디버깅을 위한 상세 로그
+        Log.d(TAG, "=== 메시지 소유권 판단 ===");
+        Log.d(TAG, "현재 사용자 이메일: [" + currentUserEmail + "]");
+        Log.d(TAG, "메시지 발신자 ID: [" + senderId + "]");
+        Log.d(TAG, "메시지 발신자 이름: [" + senderName + "]");
+        Log.d(TAG, "그룹 ID: [" + currentGroupId + "]");
+        
+        // 1. 이메일 정확 매칭 (대소문자 무시)
+        if (senderId != null && currentUserEmail.equalsIgnoreCase(senderId.trim())) {
+            Log.d(TAG, "✓ 이메일 정확 매칭으로 현재 사용자 메시지 확인됨");
+            return true;
+        }
+        
+        // 2. 이메일 앞부분 매칭 (@ 앞부분)
+        if (senderId != null && currentUserEmail.contains("@")) {
+            String emailPrefix = currentUserEmail.split("@")[0];
+            Log.d(TAG, "이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderId.trim() + "]");
+            if (emailPrefix.equalsIgnoreCase(senderId.trim())) {
+                Log.d(TAG, "✓ 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+        }
+        
+        // 3. 발신자명으로 판단
+        if (senderName != null) {
+            String normalizedName = senderName.trim().toLowerCase();
+            Log.d(TAG, "발신자명 정규화: [" + normalizedName + "]");
+            
+            // "나" 또는 "me" 키워드 확인
+            if (normalizedName.equals("나") || normalizedName.equals("me") || normalizedName.equals("myself")) {
+                Log.d(TAG, "✓ 발신자명 키워드로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+            
+            // 현재 사용자 이메일의 앞부분과 비교
+            if (currentUserEmail.contains("@")) {
+                String emailPrefix = currentUserEmail.split("@")[0];
+                Log.d(TAG, "발신자명과 이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderName.trim() + "]");
+                if (emailPrefix.equalsIgnoreCase(senderName.trim())) {
+                    Log.d(TAG, "✓ 발신자명과 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
+                    return true;
+                }
+            }
+        }
+        
+        // 4. 추가 매칭 로직 (더 관대한 방식)
+        if (senderId != null && currentUserEmail != null) {
+            // 공백 제거 후 부분 문자열 매칭
+            String cleanSenderId = senderId.replaceAll("\\s+", "").toLowerCase();
+            String cleanCurrentEmail = currentUserEmail.replaceAll("\\s+", "").toLowerCase();
+            
+            Log.d(TAG, "공백 제거 후 비교: [" + cleanCurrentEmail + "] contains [" + cleanSenderId + "]");
+            
+            if (cleanCurrentEmail.contains(cleanSenderId) || cleanSenderId.contains(cleanCurrentEmail)) {
+                Log.d(TAG, "✓ 부분 문자열 매칭으로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+        }
+        
+        // 5. 사용자 이름과 이메일 교차 매칭
+        if (currentUserName != null && senderId != null) {
+            Log.d(TAG, "사용자 이름과 발신자 ID 교차 비교: [" + currentUserName + "] vs [" + senderId + "]");
+            if (currentUserName.trim().equalsIgnoreCase(senderId.trim())) {
+                Log.d(TAG, "✓ 사용자 이름과 발신자 ID 매칭으로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+        }
+        
+        Log.d(TAG, "✗ 현재 사용자 메시지가 아님으로 판단됨");
+        Log.d(TAG, "========================");
+        return false;
+    }
+    
+    // 타임스탬프 파싱 개선 - 정확한 시간 처리
+    private long parseTimestampToMillisFixed(String timestampStr) {
         if (timestampStr == null || timestampStr.isEmpty()) {
+            Log.w(TAG, "타임스탬프가 비어있음 - 현재 시간 사용");
             return System.currentTimeMillis();
         }
         
         try {
-            // ISO 8601 형식: "2025-04-12T20:02:02" 또는 "2025-04-12T20:02:02Z"
-            // SimpleDateFormat을 사용하여 파싱
-            java.text.SimpleDateFormat sdf;
-            
-            if (timestampStr.contains("T")) {
-                if (timestampStr.endsWith("Z")) {
-                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-                } else if (timestampStr.contains("+") || timestampStr.lastIndexOf("-") > 10) {
-                    // 타임존 정보가 있는 경우 (예: 2025-04-12T20:02:02+09:00)
-                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-                } else {
-                    // 로컬 시간으로 가정
-                    sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+            // 1. 이미 밀리초 형태인 경우 (숫자만 있는 경우)
+            if (timestampStr.matches("\\d+")) {
+                long timestamp = Long.parseLong(timestampStr);
+                // 초 단위인지 밀리초 단위인지 판단 (2000년 이후 기준)
+                if (timestamp < 946684800000L) { // 2000-01-01 00:00:00 UTC in milliseconds
+                    timestamp *= 1000; // 초를 밀리초로 변환
                 }
-            } else {
-                // 일반적인 날짜 형식
-                sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                return timestamp;
             }
             
-            java.util.Date date = sdf.parse(timestampStr);
-            return date.getTime();
+            // 2. ISO 8601 형식 처리
+            if (timestampStr.contains("T")) {
+                try {
+                    // Java 8+ Time API 사용
+                    java.time.Instant instant;
+                    
+                    if (timestampStr.endsWith("Z")) {
+                        // UTC 시간 (예: "2025-01-15T10:30:00Z")
+                        instant = java.time.Instant.parse(timestampStr);
+                    } else if (timestampStr.contains("+") || timestampStr.lastIndexOf("-") > 10) {
+                        // 타임존 정보 포함 (예: "2025-01-15T10:30:00+09:00")
+                        instant = java.time.OffsetDateTime.parse(timestampStr).toInstant();
+                    } else {
+                        // 로컬 시간으로 가정 (예: "2025-01-15T10:30:00")
+                        java.time.LocalDateTime localDateTime = java.time.LocalDateTime.parse(timestampStr);
+                        instant = localDateTime.atZone(java.time.ZoneId.of("Asia/Seoul")).toInstant();
+                    }
+                    
+                    return instant.toEpochMilli();
+                } catch (Exception e) {
+                    Log.w(TAG, "Java 8 Time API 파싱 실패, SimpleDateFormat 시도: " + timestampStr);
+                }
+                
+                // SimpleDateFormat으로 fallback
+                try {
+                    java.text.SimpleDateFormat sdf;
+                    if (timestampStr.endsWith("Z")) {
+                        sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    } else {
+                        sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                        sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Seoul"));
+                    }
+                    
+                    java.util.Date date = sdf.parse(timestampStr);
+                    return date.getTime();
+                } catch (Exception e) {
+                    Log.w(TAG, "SimpleDateFormat 파싱도 실패: " + timestampStr);
+                }
+            }
+            
+            // 3. 일반적인 날짜 형식 처리 (예: "2025-01-15 10:30:00")
+            if (timestampStr.contains(" ")) {
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Seoul"));
+                    java.util.Date date = sdf.parse(timestampStr);
+                    return date.getTime();
+                } catch (Exception e) {
+                    Log.w(TAG, "일반 날짜 형식 파싱 실패: " + timestampStr);
+                }
+            }
             
         } catch (Exception e) {
-            System.out.println("타임스탬프 파싱 오류: " + timestampStr + ", 오류: " + e.getMessage());
-            // 파싱 실패 시 현재 시간 반환
-            return System.currentTimeMillis();
+            Log.e(TAG, "타임스탬프 파싱 전체 실패: " + timestampStr, e);
         }
+        
+        // 모든 파싱 실패 시 현재 시간 반환
+        Log.w(TAG, "타임스탬프 파싱 실패, 현재 시간 사용: " + timestampStr);
+        return System.currentTimeMillis();
     }
     
-    // 성능 최적화된 중복 메시지 감지 (해시 기반)
-    private boolean isDuplicateMessage(Message newMessage) {
-        // 메시지 고유 해시 생성 (타임스탬프 + 발신자 + 내용 해시)
-        String messageHash = generateMessageHash(newMessage);
+    // 강화된 중복 메시지 감지 (정확도 향상) - 스레드 안전 버전
+    private boolean isDuplicateMessageEnhanced(Message newMessage) {
+        String newMessageHash = generateMessageHashEnhanced(newMessage);
         
-        // 해시 기반 중복 체크 (O(1) 시간 복잡도)
-        if (messageHashSet.contains(messageHash)) {
-            Log.d(TAG, "중복 메시지 감지됨: " + messageHash);
-            return true;
+        // 1. 해시 기반 빠른 체크 (스레드 안전)
+        synchronized (messageHashSet) {
+            if (messageHashSet.contains(newMessageHash)) {
+                Log.d(TAG, "해시 기반 중복 메시지 감지: " + newMessageHash);
+                return true;
+            }
         }
         
-        // 새 메시지 해시 추가
-        messageHashSet.add(messageHash);
+        // 2. 기존 메시지 리스트와 정확한 비교 (스레드 안전)
+        synchronized (messageList) {
+            // 리스트 복사본을 만들어서 안전하게 순회
+            List<Message> messageListCopy = new ArrayList<>(messageList);
+            for (Message existingMessage : messageListCopy) {
+                if (isSameMessageExact(newMessage, existingMessage)) {
+                    Log.d(TAG, "정확한 비교로 중복 메시지 감지");
+                    return true;
+                }
+                
+                // 추가: 내용과 시간이 비슷한 메시지 체크 (중복 방지 강화)
+                if (isSimilarMessage(newMessage, existingMessage)) {
+                    Log.d(TAG, "유사 메시지로 중복 감지: 새 메시지=[" + newMessage.getSenderId() + 
+                              "], 기존 메시지=[" + existingMessage.getSenderId() + "]");
+                    return true;
+                }
+            }
+        }
         
-        // 메모리 관리: 해시 세트가 너무 커지면 정리
-        if (messageHashSet.size() > 2000) {
-            cleanupMessageHashSet();
+        // 3. 새 메시지 해시 추가 (스레드 안전)
+        synchronized (messageHashSet) {
+            messageHashSet.add(newMessageHash);
+            
+            // 4. 메모리 관리
+            if (messageHashSet.size() > 2000) {
+                cleanupMessageHashSet();
+            }
         }
         
         return false;
     }
     
-    // 메시지 고유 해시 생성
-    private String generateMessageHash(Message message) {
+    // 유사 메시지 감지 (내용과 시간이 비슷한 경우)
+    private boolean isSimilarMessage(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
+        }
+        
+        // 메시지 내용이 동일한지 확인
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 시간 차이가 5초 이내인지 확인 (동일한 메시지가 거의 동시에 온 경우)
+        long timeDiff = Math.abs(msg1.getTimestamp() - msg2.getTimestamp());
+        if (timeDiff > 5000) { // 5초 초과하면 다른 메시지로 판단
+            return false;
+        }
+        
+        // 발신자가 모두 현재 사용자인 경우 (내가 보낸 메시지가 중복으로 표시되는 경우)
+        boolean isMsg1Mine = isCurrentUserMessage(msg1.getSenderId(), msg1.getSenderName());
+        boolean isMsg2Mine = isCurrentUserMessage(msg2.getSenderId(), msg2.getSenderName());
+        
+        if (isMsg1Mine && isMsg2Mine) {
+            Log.d(TAG, "내가 보낸 메시지 중복 감지: 시간차=" + timeDiff + "ms");
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // 향상된 메시지 고유 해시 생성
+    private String generateMessageHashEnhanced(Message message) {
         StringBuilder hashBuilder = new StringBuilder();
+        
+        // 타임스탬프 (밀리초 단위)
         hashBuilder.append(message.getTimestamp());
         hashBuilder.append("_");
-        hashBuilder.append(message.getSenderId() != null ? message.getSenderId() : "");
-        hashBuilder.append("_");
-        hashBuilder.append(message.getMessage() != null ? message.getMessage().hashCode() : 0);
         
-        // 파일 메시지인 경우 파일 URL도 포함
+        // 발신자 ID (정규화)
+        String senderId = message.getSenderId();
+        if (senderId != null) {
+            senderId = senderId.trim().toLowerCase();
+        }
+        hashBuilder.append(senderId != null ? senderId : "unknown");
+        hashBuilder.append("_");
+        
+        // 메시지 내용 (정규화)
+        String content = message.getMessage();
+        if (content != null) {
+            content = content.trim();
+        }
+        hashBuilder.append(content != null ? content.hashCode() : 0);
+        
+        // 파일 정보 (있는 경우)
         if (message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
             hashBuilder.append("_file_");
-            hashBuilder.append(message.getFileUrl().hashCode());
+            hashBuilder.append(message.getFileUrl().trim().hashCode());
+            if (message.getFileType() != null) {
+                hashBuilder.append("_");
+                hashBuilder.append(message.getFileType().trim());
+            }
         }
         
         return hashBuilder.toString();
     }
     
-    // 메시지 해시 세트 정리 (메모리 최적화)
-    private void cleanupMessageHashSet() {
-        Log.d(TAG, "메시지 해시 세트 정리 시작 - 현재 크기: " + messageHashSet.size());
-        
-        // 현재 메시지 리스트의 해시만 유지
-        Set<String> currentHashes = new HashSet<>();
-        for (Message message : messageList) {
-            currentHashes.add(generateMessageHash(message));
+    // 두 메시지가 정확히 동일한지 확인
+    private boolean isSameMessageExact(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
         }
         
-        messageHashSet.clear();
-        messageHashSet.addAll(currentHashes);
+        // 1. 타임스탬프 비교 (정확히 같아야 함)
+        if (msg1.getTimestamp() != msg2.getTimestamp()) {
+            return false;
+        }
         
-        Log.d(TAG, "메시지 해시 세트 정리 완료 - 정리 후 크기: " + messageHashSet.size());
+        // 2. 발신자 ID 비교 (정규화 후 비교)
+        String senderId1 = msg1.getSenderId();
+        String senderId2 = msg2.getSenderId();
+        if (senderId1 != null) senderId1 = senderId1.trim().toLowerCase();
+        if (senderId2 != null) senderId2 = senderId2.trim().toLowerCase();
+        
+        if (!java.util.Objects.equals(senderId1, senderId2)) {
+            return false;
+        }
+        
+        // 3. 메시지 내용 비교 (정규화 후 비교)
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 4. 파일 URL 비교 (있는 경우)
+        String fileUrl1 = msg1.getFileUrl();
+        String fileUrl2 = msg2.getFileUrl();
+        if (fileUrl1 != null) fileUrl1 = fileUrl1.trim();
+        if (fileUrl2 != null) fileUrl2 = fileUrl2.trim();
+        
+        return java.util.Objects.equals(fileUrl1, fileUrl2);
     }
-
+    
     // 그룹 멤버 목록을 로드하는 메소드
     private void loadGroupMembers() {
         OkHttpClient client = new OkHttpClient();
@@ -1629,7 +1947,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             
             // 로컬 메시지 목록에서 동일한 메시지가 있는지 확인
             for (Message localMessage : messageList) {
-                if (isSameMessage(serverMessage, localMessage)) {
+                if (isSameMessageExact(serverMessage, localMessage)) {
                     found = true;
                     break;
                 }
@@ -1643,13 +1961,6 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
         return missingMessages;
     }
     
-    // 두 메시지가 동일한지 확인 (타임스탬프, 발신자, 내용으로 판단)
-    private boolean isSameMessage(Message msg1, Message msg2) {
-        return msg1.getTimestamp() == msg2.getTimestamp() &&
-               msg1.getSenderId().equals(msg2.getSenderId()) &&
-               msg1.getMessage().equals(msg2.getMessage());
-    }
-    
     // 메시지 목록을 타임스탬프 순으로 정렬
     private void sortMessagesByTimestamp() {
         try {
@@ -1660,6 +1971,26 @@ public class ChatActivity extends AppCompatActivity implements WebSocketService.
             });
         } catch (Exception e) {
             System.out.println("메시지 정렬 오류: " + e.getMessage());
+        }
+    }
+
+    // 메시지 해시 세트 정리 (메모리 최적화) - 스레드 안전 버전
+    private void cleanupMessageHashSet() {
+        synchronized (messageHashSet) {
+            Log.d(TAG, "메시지 해시 세트 정리 시작 - 현재 크기: " + messageHashSet.size());
+            
+            // 현재 메시지 리스트의 해시만 유지
+            Set<String> currentHashes = new HashSet<>();
+            synchronized (messageList) {
+                for (Message message : messageList) {
+                    currentHashes.add(generateMessageHashEnhanced(message));
+                }
+            }
+            
+            messageHashSet.clear();
+            messageHashSet.addAll(currentHashes);
+            
+            Log.d(TAG, "메시지 해시 세트 정리 완료 - 정리 후 크기: " + messageHashSet.size());
         }
     }
 }
