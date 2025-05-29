@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="search_types">
+        <item>일반 검색</item>
+        <item>AI 검색</item>
+    </string-array>
+</resources>
