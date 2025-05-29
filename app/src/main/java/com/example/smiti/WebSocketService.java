@@ -9,16 +9,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.json.JSONObject;
 
 public class WebSocketService {
     private static final String TAG = "WebSocketService";
     private static final String WS_BASE_URL = "ws://202.31.246.51:80/ws";
-    private static final int CONNECTION_TIMEOUT = 60; // 60초로 증가
-    private static final int INITIAL_RECONNECT_DELAY = 1000; // 초기 재연결 지연 1초
-    private static final int MAX_RECONNECT_DELAY = 30000; // 최대 재연결 지연 30초
-    private static final int MAX_RECONNECT_ATTEMPTS = 10; // 최대 재연결 시도 횟수
+    private static final int CONNECTION_TIMEOUT = 30; // 30초로 단축 (빠른 실패)
+    private static final int INITIAL_RECONNECT_DELAY = 2000; // 초기 재연결 지연 2초
+    private static final int MAX_RECONNECT_DELAY = 15000; // 최대 재연결 지연 15초로 단축
+    private static final int MAX_RECONNECT_ATTEMPTS = 5; // 재연결 시도 횟수 감소
     
     private WebSocketClient webSocketClient;
     private WebSocketListener listener;
@@ -32,6 +34,10 @@ public class WebSocketService {
     private long lastReconnectTime = 0;
     private android.os.Handler reconnectHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable reconnectRunnable;
+    
+    // 중복 메시지 방지를 위한 최근 메시지 추적
+    private Set<String> recentMessageHashes = new HashSet<>();
+    private static final int MAX_RECENT_MESSAGES = 100;
     
     // 연결 상태 관리
     public enum ConnectionState {
@@ -183,7 +189,7 @@ public class WebSocketService {
                 }
             };
             
-            // 연결 타임아웃 설정 (60초로 증가)
+            // 연결 타임아웃 설정 (30초로 단축)
             webSocketClient.setConnectionLostTimeout(CONNECTION_TIMEOUT);
             
             // 웹소켓 연결 시작
@@ -217,7 +223,7 @@ public class WebSocketService {
         
         int currentAttempt = reconnectAttempts.incrementAndGet();
         
-        // 지수 백오프 계산 (1초, 2초, 4초, 8초, ... 최대 30초)
+        // 지수 백오프 계산 (2초, 4초, 8초, 16초, ... 최대 15초)
         long delay = Math.min(INITIAL_RECONNECT_DELAY * (1L << (currentAttempt - 1)), MAX_RECONNECT_DELAY);
         
         // 마지막 재연결 시도로부터 최소 간격 보장
