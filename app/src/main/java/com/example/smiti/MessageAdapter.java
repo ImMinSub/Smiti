@@ -25,9 +25,12 @@ import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.TimeZone; // TimeZone import 추가
 
 public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -97,7 +100,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    // 표시 리스트 업데이트 (날짜 구분선 및 로딩 인디케이터 포함)
+    // 표시 리스트 업데이트 (날짜 구분선 및 로딩 인디케이터 포함) - 개선된 버전
     private void updateDisplayList() {
         displayList.clear();
         
@@ -110,6 +113,10 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             return;
         }
         
+        // 메시지를 시간순으로 정렬 (안전장치)
+        Collections.sort(originalMessageList, (m1, m2) -> 
+            Long.compare(m1.getTimestamp(), m2.getTimestamp()));
+        
         String lastDateString = "";
         
         for (int i = 0; i < originalMessageList.size(); i++) {
@@ -121,14 +128,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             
             // 날짜가 바뀌었으면 날짜 구분선 추가
             if (!currentDateString.equals(lastDateString)) {
-                DateSeparatorItem dateSeparator = new DateSeparatorItem(currentDateString, timestamp);
-                displayList.add(dateSeparator);
+                displayList.add(new DateSeparatorItem(currentDateString, timestamp));
                 lastDateString = currentDateString;
             }
             
             // 메시지 추가
             displayList.add(message);
         }
+        
+        Log.d(TAG, "표시 리스트 업데이트 완료: 원본 " + originalMessageList.size() + 
+                  "개 메시지 -> 표시 " + displayList.size() + "개 항목 (날짜 구분선 포함)");
     }
     
     // 날짜 구분선용 날짜 포맷팅
@@ -166,6 +175,21 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
+    // 첫 번째 메시지인지 확인하는 헬퍼 메서드
+    private boolean isFirstMessage(Message targetMessage) {
+        if (originalMessageList == null || originalMessageList.isEmpty()) {
+            return false;
+        }
+        
+        for (int i = 0; i < originalMessageList.size(); i++) {
+            Message message = originalMessageList.get(i);
+            if (message == targetMessage) {
+                return i == 0; // 첫 번째 메시지인지 확인
+            }
+        }
+        return false;
+    }
+
     @Override
     public int getItemViewType(int position) {
         Object item = displayList.get(position);
@@ -183,26 +207,90 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         // 메시지인 경우
         Message message = (Message) item;
         String senderId = message.getSenderId(); // 메시지 발신자 ID (이메일)
+        String senderName = message.getSenderName(); // 메시지 발신자 이름
 
         // 시스템 메시지이고 첫 메시지인 경우 버튼이 있는 메시지 타입으로 설정
         if ("system".equals(senderId) && isFirstMessage(message)) {
             return VIEW_TYPE_MESSAGE_WITH_BUTTONS;
         }
-        // 메시지가 현재 사용자의 것인지 확인하여 뷰 타입 결정
-        else if (currentUserIdentifier != null && senderId != null && senderId.equals(currentUserIdentifier)) {
-            return VIEW_TYPE_MESSAGE_SENT; // 보낸 메시지
-        } else {
-            return VIEW_TYPE_MESSAGE_RECEIVED; // 받은 메시지
-        }
+        
+        // 현재 사용자 메시지인지 정확히 판단 (강화된 로직)
+        boolean isCurrentUser = isCurrentUserMessage(senderId, senderName);
+        
+        Log.d(TAG, "메시지 소유권 판단: senderId=" + senderId + 
+                  ", senderName=" + senderName + 
+                  ", currentUserIdent=" + currentUserIdentifier + 
+                  ", isCurrentUser=" + isCurrentUser);
+        
+        return isCurrentUser ? VIEW_TYPE_MESSAGE_SENT : VIEW_TYPE_MESSAGE_RECEIVED;
     }
     
-    // 첫 번째 메시지인지 확인하는 헬퍼 메서드
-    private boolean isFirstMessage(Message targetMessage) {
-        for (Message message : originalMessageList) {
-            if (message == targetMessage) {
-                return originalMessageList.indexOf(message) == 0;
+    // 현재 사용자 메시지인지 정확히 판단하는 메서드 (강화된 버전)
+    private boolean isCurrentUserMessage(String senderId, String senderName) {
+        if (currentUserIdentifier == null || currentUserIdentifier.isEmpty()) {
+            Log.w(TAG, "현재 사용자 식별자가 설정되지 않음");
+            return false;
+        }
+        
+        // 디버깅을 위한 상세 로그
+        Log.d(TAG, "=== MessageAdapter 메시지 소유권 판단 ===");
+        Log.d(TAG, "현재 사용자 식별자: [" + currentUserIdentifier + "]");
+        Log.d(TAG, "메시지 발신자 ID: [" + senderId + "]");
+        Log.d(TAG, "메시지 발신자 이름: [" + senderName + "]");
+        
+        // 1. 정확한 이메일 매칭 (대소문자 무시)
+        if (senderId != null && currentUserIdentifier.equalsIgnoreCase(senderId.trim())) {
+            Log.d(TAG, "✓ 정확한 이메일 매칭으로 현재 사용자 메시지 확인됨");
+            return true;
+        }
+        
+        // 2. 이메일 앞부분 매칭 (@ 앞부분)
+        if (senderId != null && currentUserIdentifier.contains("@")) {
+            String emailPrefix = currentUserIdentifier.split("@")[0];
+            Log.d(TAG, "이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderId.trim() + "]");
+            if (emailPrefix.equalsIgnoreCase(senderId.trim())) {
+                Log.d(TAG, "✓ 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
+                return true;
             }
         }
+        
+        // 3. 발신자명으로 판단 - 강화된 로직
+        if (senderName != null) {
+            String normalizedName = senderName.trim().toLowerCase();
+            Log.d(TAG, "발신자명 정규화: [" + normalizedName + "]");
+            
+            // "나" 또는 "me" 키워드 확인
+            if (normalizedName.equals("나") || normalizedName.equals("me") || normalizedName.equals("myself")) {
+                Log.d(TAG, "✓ 발신자명 키워드로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+            
+            // 현재 사용자 이메일의 앞부분과 비교
+            if (currentUserIdentifier.contains("@")) {
+                String emailPrefix = currentUserIdentifier.split("@")[0];
+                Log.d(TAG, "발신자명과 이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderName.trim() + "]");
+                if (emailPrefix.equalsIgnoreCase(senderName.trim())) {
+                    Log.d(TAG, "✓ 발신자명과 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
+                    return true;
+                }
+            }
+        }
+        
+        // 4. 부분 문자열 매칭 (더 관대한 방식)
+        if (senderId != null && currentUserIdentifier != null) {
+            String cleanSenderId = senderId.replaceAll("\\s+", "").toLowerCase();
+            String cleanCurrentId = currentUserIdentifier.replaceAll("\\s+", "").toLowerCase();
+            
+            Log.d(TAG, "공백 제거 후 비교: [" + cleanCurrentId + "] contains [" + cleanSenderId + "]");
+            
+            if (cleanCurrentId.contains(cleanSenderId) || cleanSenderId.contains(cleanCurrentId)) {
+                Log.d(TAG, "✓ 부분 문자열 매칭으로 현재 사용자 메시지 확인됨");
+                return true;
+            }
+        }
+        
+        Log.d(TAG, "✗ 현재 사용자 메시지가 아님으로 판단됨");
+        Log.d(TAG, "========================================");
         return false;
     }
 
@@ -257,11 +345,220 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         return displayList.size();
     }
 
-    // 메시지 리스트에 새 메시지 추가 및 UI 갱신
+    // 메시지 리스트에 새 메시지 추가 및 UI 갱신 - 스레드 안전 버전
     public void addMessage(Message message) {
-        originalMessageList.add(message);
-        updateDisplayList(); // 표시 리스트 업데이트
-        notifyDataSetChanged(); // 전체 갱신 (날짜 구분선 때문에)
+        if (message == null) {
+            return;
+        }
+        
+        // 강화된 중복 메시지 체크
+        if (isDuplicateMessageEnhanced(message)) {
+            Log.d(TAG, "중복 메시지 감지됨, 추가하지 않음: " + message.getMessage());
+            return;
+        }
+        
+        // 동일한 내용의 메시지가 이미 있는지 확인 (시간 차이 고려)
+        synchronized (originalMessageList) {
+            for (int i = originalMessageList.size() - 1; i >= 0; i--) {
+                Message existingMessage = originalMessageList.get(i);
+                
+                // 동일한 내용이고 시간 차이가 10초 이내인 메시지가 있으면 중복으로 판단
+                if (isSameMessageContent(existingMessage, message) && 
+                    Math.abs(existingMessage.getTimestamp() - message.getTimestamp()) < 10000) {
+                    
+                    Log.d(TAG, "동일 내용 메시지 중복 감지: 기존=" + existingMessage.getTimestamp() + 
+                              ", 새로운=" + message.getTimestamp());
+                    
+                    // 더 최신 메시지로 교체
+                    if (message.getTimestamp() > existingMessage.getTimestamp()) {
+                        originalMessageList.set(i, message);
+                        updateDisplayList();
+                        notifyDataSetChanged();
+                        Log.d(TAG, "더 최신 메시지로 교체됨");
+                    }
+                    return;
+                }
+                
+                // 성능을 위해 최근 20개 메시지만 확인
+                if (originalMessageList.size() - i > 20) {
+                    break;
+                }
+            }
+            
+            // 중복이 아니면 새 메시지 추가
+            originalMessageList.add(message);
+        }
+        
+        updateDisplayList();
+        notifyItemInserted(displayList.size() - 1);
+        
+        Log.d(TAG, "새 메시지 추가됨: " + message.getSenderName() + " - " + 
+                  message.getMessage().substring(0, Math.min(20, message.getMessage().length())));
+    }
+    
+    // 메시지 내용이 동일한지 확인하는 메서드
+    private boolean isSameMessageContent(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
+        }
+        
+        // 메시지 내용 비교
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 파일 URL 비교 (있는 경우)
+        String fileUrl1 = msg1.getFileUrl();
+        String fileUrl2 = msg2.getFileUrl();
+        if (fileUrl1 != null) fileUrl1 = fileUrl1.trim();
+        if (fileUrl2 != null) fileUrl2 = fileUrl2.trim();
+        
+        return java.util.Objects.equals(fileUrl1, fileUrl2);
+    }
+
+    // 강화된 중복 메시지 체크
+    private boolean isDuplicateMessageEnhanced(Message newMessage) {
+        String newMessageHash = generateMessageHashEnhanced(newMessage);
+        
+        for (Message existingMessage : originalMessageList) {
+            String existingHash = generateMessageHashEnhanced(existingMessage);
+            if (newMessageHash.equals(existingHash)) {
+                Log.d(TAG, "해시 기반 중복 메시지 감지");
+                return true;
+            }
+            
+            // 정확한 메시지 비교
+            if (isSameMessageExact(newMessage, existingMessage)) {
+                Log.d(TAG, "정확한 비교로 중복 메시지 감지");
+                return true;
+            }
+            
+            // 유사 메시지 체크 (내용과 시간이 비슷한 경우)
+            if (isSimilarMessage(newMessage, existingMessage)) {
+                Log.d(TAG, "유사 메시지로 중복 감지");
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // 향상된 메시지 고유 해시 생성
+    private String generateMessageHashEnhanced(Message message) {
+        StringBuilder hashBuilder = new StringBuilder();
+        
+        // 타임스탬프 (밀리초 단위)
+        hashBuilder.append(message.getTimestamp());
+        hashBuilder.append("_");
+        
+        // 발신자 ID (정규화) - 현재 사용자 메시지는 통일
+        String senderId = message.getSenderId();
+        if (senderId != null) {
+            senderId = senderId.trim().toLowerCase();
+            // 현재 사용자 메시지인 경우 이메일로 통일
+            if (isCurrentUserMessage(senderId, message.getSenderName())) {
+                senderId = currentUserIdentifier != null ? currentUserIdentifier.toLowerCase() : senderId;
+            }
+        }
+        hashBuilder.append(senderId != null ? senderId : "unknown");
+        hashBuilder.append("_");
+        
+        // 메시지 내용 (정규화)
+        String content = message.getMessage();
+        if (content != null) {
+            content = content.trim();
+        }
+        hashBuilder.append(content != null ? content.hashCode() : 0);
+        
+        // 파일 정보 (있는 경우)
+        if (message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
+            hashBuilder.append("_file_");
+            hashBuilder.append(message.getFileUrl().trim().hashCode());
+            if (message.getFileType() != null) {
+                hashBuilder.append("_");
+                hashBuilder.append(message.getFileType().trim());
+            }
+        }
+        
+        return hashBuilder.toString();
+    }
+    
+    // 두 메시지가 정확히 동일한지 확인
+    private boolean isSameMessageExact(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
+        }
+        
+        // 1. 타임스탬프 비교 (정확히 같아야 함)
+        if (msg1.getTimestamp() != msg2.getTimestamp()) {
+            return false;
+        }
+        
+        // 2. 발신자 ID 비교 (정규화 후 비교)
+        String senderId1 = msg1.getSenderId();
+        String senderId2 = msg2.getSenderId();
+        if (senderId1 != null) senderId1 = senderId1.trim().toLowerCase();
+        if (senderId2 != null) senderId2 = senderId2.trim().toLowerCase();
+        
+        if (!java.util.Objects.equals(senderId1, senderId2)) {
+            return false;
+        }
+        
+        // 3. 메시지 내용 비교 (정규화 후 비교)
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 4. 파일 URL 비교 (있는 경우)
+        String fileUrl1 = msg1.getFileUrl();
+        String fileUrl2 = msg2.getFileUrl();
+        if (fileUrl1 != null) fileUrl1 = fileUrl1.trim();
+        if (fileUrl2 != null) fileUrl2 = fileUrl2.trim();
+        
+        return java.util.Objects.equals(fileUrl1, fileUrl2);
+    }
+    
+    // 유사 메시지 감지 (내용과 시간이 비슷한 경우)
+    private boolean isSimilarMessage(Message msg1, Message msg2) {
+        if (msg1 == null || msg2 == null) {
+            return false;
+        }
+        
+        // 메시지 내용이 동일한지 확인
+        String content1 = msg1.getMessage();
+        String content2 = msg2.getMessage();
+        if (content1 != null) content1 = content1.trim();
+        if (content2 != null) content2 = content2.trim();
+        
+        if (!java.util.Objects.equals(content1, content2)) {
+            return false;
+        }
+        
+        // 시간 차이가 5초 이내인지 확인
+        long timeDiff = Math.abs(msg1.getTimestamp() - msg2.getTimestamp());
+        if (timeDiff > 5000) { // 5초 초과하면 다른 메시지로 판단
+            return false;
+        }
+        
+        // 발신자가 모두 현재 사용자인 경우
+        boolean isMsg1Mine = isCurrentUserMessage(msg1.getSenderId(), msg1.getSenderName());
+        boolean isMsg2Mine = isCurrentUserMessage(msg2.getSenderId(), msg2.getSenderName());
+        
+        if (isMsg1Mine && isMsg2Mine) {
+            Log.d(TAG, "내가 보낸 메시지 중복 감지: 시간차=" + timeDiff + "ms");
+            return true;
+        }
+        
+        return false;
     }
 
     // 로딩 인디케이터 ViewHolder 클래스
@@ -751,5 +1048,69 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             Log.e(TAG, "파일 다운로드 오류: " + fileUrl, e);
             Toast.makeText(context, "다운로드 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // 페이지네이션을 위한 메시지 상단 추가 메서드 (날짜 구분선 포함)
+    public void addMessagesAtTop(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        
+        Log.d(TAG, "상단에 " + messages.size() + "개 메시지 추가 시작");
+        
+        List<Message> validMessages = new ArrayList<>(); // 메서드 레벨에서 선언
+        
+        synchronized (originalMessageList) {
+            // 중복 메시지 필터링
+            for (Message message : messages) {
+                if (message != null && !isDuplicateMessageEnhanced(message)) {
+                    validMessages.add(message);
+                }
+            }
+            
+            if (validMessages.isEmpty()) {
+                Log.d(TAG, "추가할 새 메시지가 없음 (모두 중복)");
+                return;
+            }
+            
+            // 원본 메시지 리스트에 추가
+            originalMessageList.addAll(0, validMessages);
+            
+            // 표시 리스트 업데이트
+            updateDisplayList();
+            notifyDataSetChanged();
+        }
+        
+        Log.d(TAG, "상단에 " + validMessages.size() + "개 메시지 추가 완료");
+    }
+    
+    // 전체 메시지 교체 메서드 (날짜 구분선 포함)
+    public void replaceAllMessages(List<Message> messages) {
+        if (messages == null) {
+            return;
+        }
+        
+        Log.d(TAG, "전체 메시지 교체 시작: " + messages.size() + "개");
+        
+        List<Message> validMessages = new ArrayList<>(); // 메서드 레벨에서 선언
+        
+        synchronized (originalMessageList) {
+            // 중복 메시지 필터링
+            for (Message message : messages) {
+                if (message != null && !isDuplicateMessageEnhanced(message)) {
+                    validMessages.add(message);
+                }
+            }
+            
+            // 원본 메시지 리스트 교체
+            originalMessageList.clear();
+            originalMessageList.addAll(validMessages);
+            
+            // 표시 리스트 업데이트
+            updateDisplayList();
+            notifyDataSetChanged();
+        }
+        
+        Log.d(TAG, "전체 메시지 교체 완료: " + validMessages.size() + "개");
     }
 }
