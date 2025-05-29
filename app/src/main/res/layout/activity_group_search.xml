@@ -8,7 +8,6 @@
     android:fitsSystemWindows="true"
     android:background="@color/white">
 
-    <!-- 상단 검색바 영역 -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,7 +22,6 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <!-- 뒤로가기 버튼 -->
             <ImageButton
                 android:id="@+id/btn_back"
                 android:layout_width="48dp"
@@ -33,7 +31,18 @@
                 android:contentDescription="뒤로가기"
                 android:padding="12dp" />
 
-            <!-- 검색창 -->
+            <Spinner
+                android:id="@+id/search_type_spinner"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:minHeight="48dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:spinnerMode="dropdown"
+                android:entries="@array/search_types" />
+
             <EditText
                 android:id="@+id/searchView"
                 android:layout_width="0dp"
@@ -49,7 +58,6 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
 
-            <!-- 검색 버튼 -->
             <ImageButton
                 android:id="@+id/btn_search"
                 android:layout_width="48dp"
@@ -59,18 +67,6 @@
                 android:contentDescription="검색"
                 android:padding="12dp" />
 
-            <!-- AI 검색 버튼 -->
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_ai"
-                android:layout_width="36dp"
-                android:layout_height="28dp"
-                android:background="@drawable/bg_button_outline"
-                android:text="AI"
-                android:textSize="12sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginEnd="4dp" />
-
-            <!-- 필터 버튼 -->
             <ImageButton
                 android:id="@+id/btn_filter"
                 android:layout_width="48dp"
@@ -79,10 +75,215 @@
                 android:src="@drawable/ic_filter"
                 android:contentDescription="필터"
                 android:padding="12dp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_ai"
+                android:layout_width="48dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_ai_button"
+                android:text="AI"
+                android:textColor="#757575"
+                android:textSize="12sp"
+                android:textStyle="bold" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- 검색 결과 리스트 -->
+    <LinearLayout
+        android:id="@+id/search_suggestions_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="visible">
+
+        <!-- 최근 검색어 섹션 (새로 추가) -->
+        <RelativeLayout
+            android:id="@+id/recent_searches_header_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_recent_searches_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="최근 검색어"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/black"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"/>
+
+            <TextView
+                android:id="@+id/btn_clear_all_recent_searches"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="전체 삭제"
+                android:textSize="14sp"
+                android:textColor="#757575"
+                android:padding="8dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"/>
+        </RelativeLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recent_searches_recyclerview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone"/>
+        <!-- 최근 검색어가 없을 때 표시할 메시지 (선택 사항) -->
+        <TextView
+            android:id="@+id/tv_no_recent_searches"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="최근 검색 기록이 없습니다."
+            android:gravity="center"
+            android:textSize="14sp"
+            android:textColor="#9E9E9E"
+            android:layout_marginBottom="16dp"
+            android:visibility="visible"/>
+
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="추천 프롬프트"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginBottom="8dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/bg_suggestion_item_outline"
+            android:layout_marginBottom="8dp"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_lightbulb_outline"
+                android:layout_marginEnd="10dp"
+                app:tint="#4285F4" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="tipm과 관련된 스터디"
+                android:textColor="#333333"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/bg_suggestion_item_outline"
+            android:layout_marginBottom="8dp"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_lightbulb_outline"
+                android:layout_marginEnd="10dp"
+                app:tint="#4285F4" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="취업 관련 스터디 검색"
+                android:textColor="#333333"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/bg_suggestion_item_outline"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_lightbulb_outline"
+                android:layout_marginEnd="10dp"
+                app:tint="#4285F4" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="영어 공부하는"
+                android:textColor="#333333"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI 검색 활용 팁"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginBottom="8dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_ai_tips_background"
+            android:padding="12dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="• 구체적인 조건을 자연스럽게 설명해보세요"
+                android:textColor="#555555"
+                android:textSize="13sp"
+                android:layout_marginBottom="6dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="• 상세 정보를 포함하면 더 정확한 추천을 받을 수 있어요"
+                android:textColor="#555555"
+                android:textSize="13sp"
+                android:layout_marginBottom="6dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="• 여러 조건을 한 번에 검색해 보세요"
+                android:textColor="#555555"
+                android:textSize="13sp"/>
+        </LinearLayout>
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -92,8 +293,7 @@
             android:id="@+id/listView"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
-            
-        <!-- 로딩 프로그레스바 -->
+
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
@@ -101,7 +301,6 @@
             android:layout_gravity="center"
             android:visibility="gone" />
 
-        <!-- 검색 결과 없음 안내 -->
         <LinearLayout
             android:id="@+id/empty_result_layout"
             android:layout_width="match_parent"
@@ -133,12 +332,11 @@
                 android:visibility="gone"/>
         </LinearLayout>
     </FrameLayout>
-        
-    <!-- 바텀 네비게이션 -->
+
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/white"
         app:menu="@menu/bottom_navigation_menu" />
-</LinearLayout> 
+</LinearLayout>
