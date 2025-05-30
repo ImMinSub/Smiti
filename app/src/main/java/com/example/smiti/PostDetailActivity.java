@@ -41,12 +41,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone; // 추가
+import java.util.TimeZone;
 
 // import de.hdodenhof.circleimageview.BuildConfig; // 사용하지 않는다면 제거 가능
 import okhttp3.ResponseBody;
@@ -266,17 +267,38 @@ public class PostDetailActivity extends AppCompatActivity {
         try {
             String createdAtStr = getStringFromMap(postData, "created_at");
             if (createdAtStr != null) {
-                // UTC 시간 파싱 및 로컬 시간 변환을 위한 포매터 설정
-                SimpleDateFormat serverFormat = new SimpleDateFormat(createdAtStr.contains(".") ? "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" : "yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH);
-                serverFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-                Date createdAt = serverFormat.parse(createdAtStr);
-                this.post.setCreatedAt(createdAt);
+                Log.d(TAG, "Received date string: " + createdAtStr);
 
-                SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                // displayFormat.setTimeZone(TimeZone.getDefault()); // 시스템 기본 타임존으로 표시
-                tvDate.setText(displayFormat.format(createdAt));
-            } else { tvDate.setText("날짜 정보 없음"); }
-        } catch (Exception e) { Log.e(TAG, "Date parsing error", e); tvDate.setText("날짜 형식 오류"); }
+                // 서버에서 오는 날짜 형식에 맞춤
+                SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.KOREA);
+                inputFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+                Date date = inputFormat.parse(createdAtStr);
+                if (date != null) {
+                    // 한국 시간으로 변환
+                    Calendar calendar = Calendar.getInstance();
+                    calendar.setTime(date);
+                    calendar.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
+
+                    // 표시용 포맷
+                    SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
+                    outputFormat.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
+
+                    String formattedDate = outputFormat.format(calendar.getTime());
+                    Log.d(TAG, "Formatted date: " + formattedDate);
+
+                    this.post.setCreatedAt(calendar.getTime());
+                    tvDate.setText(formattedDate);
+                } else {
+                    tvDate.setText("날짜 정보 없음");
+                }
+            } else {
+                tvDate.setText("날짜 정보 없음");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Date parsing error: " + e.getMessage() + "\nDate string: " + getStringFromMap(postData, "created_at"), e);
+            tvDate.setText("날짜 형식 오류");
+        }
 
         Object filePathObj = postData.get("file_path");
         if (filePathObj != null && !filePathObj.toString().isEmpty()) {
@@ -401,13 +423,23 @@ public class PostDetailActivity extends AppCompatActivity {
             if (commentData.get("created_at") != null) {
                 String createdAtStr = getStringFromMap(commentData, "created_at");
                 if (createdAtStr != null) {
-                    SimpleDateFormat serverFormat = new SimpleDateFormat(createdAtStr.contains(".") ? "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" : "yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH);
+                    SimpleDateFormat serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.KOREA);
                     serverFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-                    comment.setCreatedAt(serverFormat.parse(createdAtStr));
+                    Date utcDate = serverFormat.parse(createdAtStr);
+                    if (utcDate != null) {
+                        Calendar calendar = Calendar.getInstance();
+                        calendar.setTime(utcDate);
+                        calendar.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
+                        comment.setCreatedAt(calendar.getTime());
+                    }
                 }
             }
+            Log.d(TAG, "Parsed comment: " + comment.getContent() + " by " + comment.getAuthorName());
             return comment;
-        } catch (Exception e) { Log.e(TAG, "Error parsing comment data", e); return null; }
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing comment data", e);
+            return null;
+        }
     }
 
     private void submitComment() {
@@ -430,17 +462,33 @@ public class PostDetailActivity extends AppCompatActivity {
                         Map<String, Object> newCommentData = response.body().getNewComment();
                         if (newCommentData != null) {
                             Comment newComment = parseCommentData(newCommentData);
-                            if (newComment != null && commentAdapter != null) commentAdapter.addComment(newComment);
+                            if (newComment != null && commentAdapter != null) {
+                                Log.d(TAG, "Adding new comment: " + newComment.getContent());
+                                commentAdapter.addComment(newComment);
+                                recyclerComments.scrollToPosition(commentAdapter.getItemCount() - 1);
+                            }
                         } else {
+                            Log.d(TAG, "Reloading post details after comment creation");
                             loadPostDetails(postId);
                         }
-                    } else { Toast.makeText(PostDetailActivity.this, "댓글 등록 실패", Toast.LENGTH_SHORT).show(); }
+                    } else {
+                        String errorMsg = "댓글 등록 실패";
+                        if (response.body() != null && response.body().getMessage() != null) {
+                            errorMsg += ": " + response.body().getMessage();
+                        }
+                        Toast.makeText(PostDetailActivity.this, errorMsg, Toast.LENGTH_SHORT).show();
+                    }
                 }
                 @Override public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-                    showLoading(false); Toast.makeText(PostDetailActivity.this, "네트워크 오류", Toast.LENGTH_SHORT).show();
+                    showLoading(false);
+                    Toast.makeText(PostDetailActivity.this, "네트워크 오류", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Comment creation failed", t);
                 }
             });
-        } catch (NumberFormatException e) { showLoading(false); Toast.makeText(this, "ID 오류", Toast.LENGTH_SHORT).show(); }
+        } catch (NumberFormatException e) {
+            showLoading(false);
+            Toast.makeText(this, "ID 오류", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void deleteComment(int commentId) {
