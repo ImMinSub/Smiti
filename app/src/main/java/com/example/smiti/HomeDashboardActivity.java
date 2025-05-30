@@ -7,7 +7,6 @@ import android.view.MenuItem;
 import android.widget.ImageView;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -19,6 +18,26 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+
+import android.util.Log;
+import com.example.smiti.api.ApiService;
+import com.example.smiti.api.RetrofitClient;
+import com.example.smiti.model.Group;
+import com.example.smiti.api.ApiResponse;
+import com.example.smiti.model.GroupAlternate;
+import com.example.smiti.model.GroupListApiResponse;
+
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Random;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+import android.widget.ProgressBar;
+import android.view.View;
+import androidx.annotation.NonNull;
+import android.content.SharedPreferences;
 
 public class HomeDashboardActivity extends AppCompatActivity implements CardAdapter.OnItemInteractionListener {
 
@@ -33,6 +52,19 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
     private FloatingActionButton fabAddCard;
     private BottomNavigationView bottomNavigationView;
     private Toolbar toolbar;
+    private ProgressBar progressBar;
+
+    // 이미지 리소스 배열 정의
+    private final int[] sampleCardImages = {
+            R.drawable.image1, // 1번 이미지
+            R.drawable.image2, // 2번 이미지
+            R.drawable.image3, // 3번 이미지
+            R.drawable.image4, // 4번 이미지
+            R.drawable.image5  // 5번 이미지
+            // 더 많은 이미지들을 여기에 추가
+    };
+
+    private Random randomGenerator = new Random();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,17 +89,24 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
         recyclerViewSmbtiGroups = findViewById(R.id.recycler_view_smbti_groups);
         fabAddCard = findViewById(R.id.fab_add_card);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        progressBar = findViewById(R.id.progress_bar);
 
         // 인기 그룹 설정
         recyclerViewPopularGroups.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
-        // CardDataHolder.getPopularItems()는 List<CardItem>을 반환. 어댑터 생성자에 맞게 ArrayList로 캐스팅하거나 어댑터 생성자 타입을 List로 변경.
-        // 여기서는 CardAdapter 생성자가 ArrayList<CardItem>을 받는다고 가정하고 캐스팅.
+
         popularGroupsAdapter = new CardAdapter(this, (ArrayList<CardItem>) CardDataHolder.getPopularItems(), this, CardAdapter.AdapterType.POPULAR);
         recyclerViewPopularGroups.setAdapter(popularGroupsAdapter);
 
+        // 인기 그룹 데이터를 서버에서 가져오도록 변경
+        popularGroupsAdapter = new CardAdapter(this, new ArrayList<>(), this, CardAdapter.AdapterType.POPULAR); // 초기에는 빈 리스트로 설정
+        recyclerViewPopularGroups.setAdapter(popularGroupsAdapter);
+
+        // 서버에서 최신 그룹 데이터 로드
+        fetchLatestGroups();
+
         // SMBTI 그룹 설정
-        smbtiItems = new ArrayList<>(); // ArrayList로 초기화
-        initializeSmbtiItems(); // SMBTI 아이템 초기화 (이 부분 수정)
+        smbtiItems = new ArrayList<>();
+
 
         smbtiGroupsAdapter = new CardAdapter(this, (ArrayList<CardItem>) smbtiItems, new CardAdapter.OnItemInteractionListener() {
             @Override
@@ -114,34 +153,6 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
         imageFlipper.setOutAnimation(this, android.R.anim.slide_out_right);
     }
 
-    // 이 메소드에서 CardItem 생성자 호출 시 7개의 인자를 전달하도록 수정
-    private void initializeSmbtiItems() {
-        // CardItem 생성자 시그니처 (7개 인자):
-        // (int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers)
-        // 에 맞게 마지막 인자로 maxMembers 값을 추가합니다.
-
-        smbtiItems.add(new CardItem(
-                R.drawable.image4,             // imageResource
-                "INFP 모여라",                 // title
-                "감성 토론방",                 // subtitle
-                null,                          // activityToOpen (SMBTI 그룹은 특정 액티비티 연결 X)
-                "INFP",                        // category (또는 SMBTI 유형)
-                CardDataHolder.createCalendar(2025, Calendar.AUGUST, 5), // studyDate
-                5                              // maxMembers (예시 값)
-        ));
-
-        smbtiItems.add(new CardItem(
-                R.drawable.image5,
-                "ESTJ 스터디",
-                "계획적인 스터디",
-                null,
-                "ESTJ",
-                CardDataHolder.createCalendar(2025, Calendar.SEPTEMBER, 15),
-                7 // maxMembers (예시 값)
-        ));
-        // 필요하다면 더 많은 SMBTI 그룹 아이템들을 위와 같은 형식으로 추가
-    }
-
     @Override
     public void onItemClick(CardItem item) {
         Toast.makeText(this, "클릭: " + item.getTitle() + "\n카테고리: " + item.getCategory() + "\n시작일: " + item.getStudyDateFormatted(), Toast.LENGTH_LONG).show();
@@ -172,16 +183,11 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
     @Override
     protected void onResume() {
         super.onResume();
-        if (popularGroupsAdapter != null) {
-            // CardAdapter의 updateData 메소드가 List<CardItem>을 받는다면 캐스팅 불필요
-            // 여기서는 getPopularItems()가 List<CardItem>을 반환한다고 가정하고,
-            // 어댑터의 updateData 메소드가 이를 처리할 수 있도록 되어 있다고 가정합니다.
-            // 또는 notifyDataSetChanged()만 호출해도 됩니다.
-            popularGroupsAdapter.updateData(new ArrayList<>(CardDataHolder.getPopularItems())); // 새 리스트로 전달
-            // popularGroupsAdapter.notifyDataSetChanged(); // 이 방법도 가능
-        }
+        // 액티비티가 다시 활성화될 때 최신 그룹 목록 갱신
+        fetchLatestGroups();
+        // SMBTI 그룹은 정적인 데이터이므로 갱신 불필요 또는 필요시 별도 로직 추가
         if (smbtiGroupsAdapter != null) {
-            smbtiGroupsAdapter.notifyDataSetChanged();
+             smbtiGroupsAdapter.notifyDataSetChanged();
         }
     }
 
@@ -231,5 +237,175 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
     // 이 메소드는 현재 코드에서 직접적인 사용처가 명확하지 않으나, 유지합니다.
     public CardAdapter getPopularGroupsAdapterInstance() {
         return popularGroupsAdapter;
+    }
+
+    private void fetchLatestGroups() {
+        ApiService apiService = RetrofitClient.getApiService();
+        Call<GroupListApiResponse> call = apiService.getGroupsForHomeDashboard();
+
+        showLoading(true);
+
+        call.enqueue(new Callback<GroupListApiResponse>() {
+            @Override
+            public void onResponse(Call<GroupListApiResponse> call, Response<GroupListApiResponse> response) {
+                showLoading(false);
+                if (response.isSuccessful() && response.body() != null) {
+                    GroupListApiResponse apiResponse = response.body();
+                    List<GroupAlternate> allGroupsAlternate = apiResponse.getGroups();
+
+                    if (allGroupsAlternate != null && !allGroupsAlternate.isEmpty()) {
+                        // GroupAlternate 목록을 ID를 기준으로 내림차순 정렬하여 최신 그룹을 위로
+                        Collections.sort(allGroupsAlternate, (g1, g2) -> {
+                            try {
+                                // ID가 숫자라고 가정하고 비교
+                                Integer id1 = Integer.parseInt(g1.getId());
+                                Integer id2 = Integer.parseInt(g2.getId());
+                                return id2.compareTo(id1); // 내림차순
+                            } catch (NumberFormatException e) {
+                                // ID가 숫자가 아니면 문자열로 비교
+                                return g2.getId().compareTo(g1.getId());
+                            }
+                        });
+
+                        // 최신 5개 그룹 추출 (목록 크기 확인)
+                        int count = Math.min(allGroupsAlternate.size(), 5);
+                        List<GroupAlternate> latestGroupsAlternate = allGroupsAlternate.subList(0, count);
+
+
+                        ArrayList<CardItem> latestGroupCardItems = new ArrayList<>();
+
+
+                        for (int i = 0; i < latestGroupsAlternate.size(); i++) {
+                            GroupAlternate groupAlt = latestGroupsAlternate.get(i);
+
+                            // 클래스 멤버인 sampleCardImages에서 순환하며 이미지 할당
+                            int imageResource = sampleCardImages[i % sampleCardImages.length]; // 순환하며 이미지 할당
+
+                            CardItem cardItem = new CardItem(
+                                imageResource,
+                                groupAlt.getName(),
+                                "", // 설명 필드가 없으므로 빈 문자열
+                                GroupSearchResultActivity.class,
+                                "", // 카테고리 필드가 없으므로 빈 문자열
+                                Calendar.getInstance(), // 기본 날짜 설정
+                                groupAlt.getMax_members(), // GroupAlternate에서 max_members 값 가져옴
+                                groupAlt.getCurrent_members() // GroupAlternate에서 current_members 값 가져옴
+                            );
+                            latestGroupCardItems.add(cardItem);
+                        }
+
+                        // Adapter 데이터 갱신
+                        popularGroupsAdapter.updateData(latestGroupCardItems);
+                        // 인기 그룹 로딩 완료 후 SMBTI 추천 그룹 로드 시작
+                        fetchSmbtiRecommendedGroups();
+
+                    } else {
+                        Log.d("HomeDashboard", "No groups found from API");
+                        // 결과가 없을 경우 UI 처리 (예: 메시지 표시)
+                    }
+                } else {
+                    Log.e("HomeDashboard", "Failed to fetch groups: " + response.code());
+                    // API 호출 실패 시 UI 처리
+                    Toast.makeText(HomeDashboardActivity.this, "그룹 목록을 가져오는데 실패했습니다.", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<GroupListApiResponse> call, Throwable t) {
+                showLoading(false);
+                Log.e("HomeDashboard", "Group fetch network error", t);
+                // 네트워크 오류 시 UI 처리
+                Toast.makeText(HomeDashboardActivity.this, "네트워크 오류 발생", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    /**
+     * 사용자 SMBTI 점수 기반 추천 그룹 목록을 가져오는 메소드
+     */
+    private void fetchSmbtiRecommendedGroups() {
+        showLoading(true);
+        SharedPreferences sharedPreferences = getSharedPreferences("LoginPrefs", MODE_PRIVATE);
+        String userEmail = sharedPreferences.getString("email", "");
+
+        if (userEmail.isEmpty()) {
+            showLoading(false);
+            Toast.makeText(this, "로그인 정보가 없습니다. 다시 로그인해주세요.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ApiService apiService = RetrofitClient.getApiService();
+        Call<ApiResponse> call = apiService.getGroupsWithSmbtiScore(userEmail);
+
+        call.enqueue(new Callback<ApiResponse>() {
+            @Override
+            public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+                showLoading(false);
+                smbtiItems.clear(); // 기존 목록 비우기
+
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse apiResponse = response.body();
+                    List<Group> groupsWithScore = apiResponse.getGroups(); // ApiResponse에 getGroupsWithScore()가 있다고 가정
+
+                    if (groupsWithScore != null && !groupsWithScore.isEmpty()) {
+                        // SMBTI 점수 기준으로 내림차순 정렬
+                        Collections.sort(groupsWithScore, (g1, g2) -> Double.compare(g2.getMbtiScore(), g1.getMbtiScore()));
+
+                        // 상위 5개만 선택하여 CardItem으로 변환
+                        int count = 0;
+                        // 기존 이미지 할당 관련 코드 삭제
+                        // int[] smbtiSampleImages = {R.drawable.image1, R.drawable.image2, R.drawable.image3, R.drawable.image4, R.drawable.image5};
+
+                        for (int i = 0; i < groupsWithScore.size() && count < 5; i++) { // 상위 5개까지만
+                            Group group = groupsWithScore.get(i);
+
+                            // TODO: 실제 이미지 리소스 또는 처리 로직 필요
+                            // 클래스 멤버인 sampleCardImages에서 랜덤으로 가져옴
+                            int selectedImageResource = 0; // 기본값 0으로 초기화
+                            if (sampleCardImages.length > 0) {
+                                int randomIndex = randomGenerator.nextInt(sampleCardImages.length);
+                                selectedImageResource = sampleCardImages[randomIndex];
+                            } else {
+                                Log.w("HomeDashboardActivity", "경고: 카드에 할당할 랜덤 이미지가 없습니다.");
+                                // 대체 이미지 또는 오류 처리 필요
+                            }
+
+                            CardItem cardItem = new CardItem(
+                                selectedImageResource,
+                                group.getName() != null ? group.getName() : "무제 그룹",
+                                group.getDescription() != null ? group.getDescription() : "",
+                                null, // 클릭 시 이동할 액티비티 (필요시 GroupSearchResultActivity 등으로 변경)
+                                "", // 카테고리 또는 SMBTI 유형 - 빈 문자열로 변경
+                                Calendar.getInstance(), // 기본 날짜 설정
+                                group.getMax_members(), // Group에서 max_members 값 가져옴
+                                group.getCurrent_members() // Group에서 current_members 값 가져옴
+                                // API 응답에 maxMembers 정보가 있다면 group.getMaxMembers() 사용 - 삭제
+                            );
+                            smbtiItems.add(cardItem);
+                            count++;
+                        }
+                    }
+                } else {
+                    Log.e("HomeDashboardActivity", "Failed to fetch SMBTI recommended groups: " + response.code());
+                    Toast.makeText(HomeDashboardActivity.this, "SMBTI 추천 그룹을 가져오지 못했습니다.", Toast.LENGTH_SHORT).show();
+                }
+                smbtiGroupsAdapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse> call, Throwable t) {
+                showLoading(false);
+                Log.e("HomeDashboardActivity", "Network error fetching SMBTI recommended groups", t);
+                Toast.makeText(HomeDashboardActivity.this, "SMBTI 추천 그룹 네트워크 오류", Toast.LENGTH_SHORT).show();
+                smbtiGroupsAdapter.notifyDataSetChanged(); // 실패 시에도 목록 갱신 (빈 목록이 표시될 것)
+            }
+        });
+    }
+
+    private void showLoading(boolean isLoading) {
+        if (progressBar != null) {
+            progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        }
+        // 로딩 중 다른 UI 요소 비활성화 등을 추가할 수 있습니다.
     }
 }
