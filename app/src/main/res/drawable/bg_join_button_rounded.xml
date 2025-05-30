@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#E0E0E0"/> <!-- 사진의 버튼 색상과 유사하게 (회색 계열) -->
+    <corners android:radius="12dp"/>
+</shape>
