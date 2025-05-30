@@ -16,9 +16,9 @@ public class CardDataHolder {
             // CardItem 생성자:
             // (int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers)
             // 마지막 인자로 maxMembers 값을 추가합니다. 예시로 5 또는 10을 사용합니다.
-            popularItems.add(new CardItem(R.drawable.image1, "코딩의 신", "자바 기초 스터디 모집", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.JUNE, 10), 10)); // 예: 최대 10명
-            popularItems.add(new CardItem(R.drawable.image2, "영어 정복", "매일 영어 회화", GroupSearchActivity.class, "어학", createCalendar(2025, Calendar.JULY, 1), 5));     // 예: 최대 5명
-            popularItems.add(new CardItem(R.drawable.image3, "알고리즘 격파", "PS 스터디", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.MAY, 20), 8));      // 예: 최대 8명
+//            popularItems.add(new CardItem(R.drawable.image1, "코딩의 신", "자바 기초 스터디 모집", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.JUNE, 10), 10)); // 예: 최대 10명
+//            popularItems.add(new CardItem(R.drawable.image2, "영어 정복", "매일 영어 회화", GroupSearchActivity.class, "어학", createCalendar(2025, Calendar.JULY, 1), 5));     // 예: 최대 5명
+//            popularItems.add(new CardItem(R.drawable.image3, "알고리즘 격파", "PS 스터디", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.MAY, 20), 8));      // 예: 최대 8명
             // ... 기타 초기 아이템들도 maxMembers 값을 포함하여 추가 ...
 
             isPopularItemsInitialDataAdded = true; // 초기 데이터 추가 완료
