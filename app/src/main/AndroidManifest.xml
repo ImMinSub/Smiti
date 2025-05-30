@@ -22,7 +22,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:requestLegacyExternalStorage="true"
         tools:targetApi="31">
-        
+
         <activity
             android:name=".SplashActivity"
             android:exported="true"
@@ -32,88 +32,120 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
+
         <activity
             android:name=".LoginActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
         </activity>
-        
+
         <activity android:name=".JoinActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-            
+
         <activity android:name=".FindIdActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-            
+
         <activity android:name=".FindPasswordActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-            
+
         <activity android:name=".MainActivity"
             android:exported="false" />
-            
+
         <activity android:name=".SmbtiIntroActivity"
             android:exported="false" />
-            
+
         <activity android:name=".SmbtiTestActivity"
             android:exported="false" />
-            
+
         <activity android:name=".ChatActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".ChatbotActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".ChatGroupListActivity"
             android:exported="false"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".ProfileActivity"
             android:exported="false" />
-            
+
         <activity android:name=".GroupSearchActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.TransparentStatusBar" />
-            
+
         <activity android:name=".GroupSearchResultActivity"
             android:exported="false"
             android:theme="@style/Theme.Smiti.TransparentStatusBar"
             android:windowSoftInputMode="adjustResize" />
-            
+
+        <!-- GroupDetailActivity 선언 추가 -->
+        <activity
+            android:name=".GroupDetailActivity"
+            android:exported="false"
+            android:label="그룹 상세 정보"
+            android:theme="@style/Theme.Smiti.NoActionBar" > <!-- 또는 다른 적절한 테마 -->
+            <!-- 필요시 부모 액티비티 지정 -->
+            <!-- <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".GroupSearchActivity" /> -->
+        </activity>
+
         <activity android:name=".BoardActivity"
             android:exported="false"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".PostEditActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".PostDetailActivity"
             android:exported="false"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".PostCreateActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".CreateGroupActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
-            
+
         <activity android:name=".StudyTimeActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Smiti.NoActionBar" />
+
+        <activity android:name=".HomeDashboardActivity"
+            android:label="검색 메인"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Smiti.NoActionBar" />
+
+        <!-- AddCardActivity 등록 -->
+        <activity
+            android:name=".AddCardActivity"
+            android:label="스터디 그룹 만들기"
+            android:parentActivityName=".HomeDashboardActivity"
+            android:theme="@style/Theme.Smiti.NoActionBar"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".HomeDashboardActivity" />
+        </activity>
+
     </application>
 
 </manifest>
