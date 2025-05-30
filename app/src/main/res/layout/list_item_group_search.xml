@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp"
+    android:background="?attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/tv_group_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:layout_toStartOf="@+id/layout_group_actions"
+        android:text="그룹 제목 예시 (매우 긴 그룹 제목도 표시 가능해야 함)"
+        android:textSize="16sp"
+        android:textColor="@android:color/black"
+        android:maxLines="2"
+        android:ellipsize="end"/>
+
+    <LinearLayout
+        android:id="@+id/layout_group_actions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_group_score"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_score_tag"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:text="점수 00점"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_join_group_item"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="#143285"
+            android:text="그룹 참가"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"/>
+    </LinearLayout>
+</RelativeLayout>
