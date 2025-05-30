@@ -21,6 +21,17 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.Random; // 랜덤 기능 사용을 위해 추가
 
+import android.content.SharedPreferences;
+import android.util.Log;
+import com.example.smiti.api.ApiResponse;
+import com.example.smiti.api.ApiService;
+import com.example.smiti.api.RetrofitClient;
+import com.example.smiti.api.CreateGroupRequest;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 public class AddCardActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
@@ -38,7 +49,7 @@ public class AddCardActivity extends AppCompatActivity {
     private final String[] categories = {"프로그래밍", "어학", "취업", "자격증", "취미", "기타"};
     private String selectedCategory = "";
     private Calendar selectedDateCalendar = Calendar.getInstance();
-    private int currentMemberCount = 1; // 이 값을 CardItem의 maxMembers로 전달
+    private int currentMemberCount = 10; // 이 값을 CardItem의 maxMembers로 전달
     private final int MAX_MEMBER_LIMIT = 20;
     private boolean isDateSelected = false;
 
@@ -79,6 +90,13 @@ public class AddCardActivity extends AppCompatActivity {
         tvMemberCountPage.setText(String.valueOf(currentMemberCount));
         updateDateLabel();
         tvSelectedCategoryPage.setText("선택");
+
+        // Intent에서 검색어 가져오기
+        String initialKeyword = getIntent().getStringExtra("SEARCH_KEYWORD");
+        if (initialKeyword != null && !initialKeyword.isEmpty()) {
+            etCardTitlePage.setText(initialKeyword + " 그룹"); // 그룹 이름에 검색어 + " 그룹" 설정
+            etCardSubtitlePage.setText(initialKeyword + "에 관련된 그룹입니다."); // 그룹 설명에 검색어 관련 설명 설정
+        }
 
         setupListeners();
     }
@@ -170,30 +188,80 @@ public class AddCardActivity extends AppCompatActivity {
             return;
         }
 
-        int selectedImageResource = 0;
-        if (randomCardImages.length > 0) {
-            int randomIndex = randomGenerator.nextInt(randomCardImages.length);
-            selectedImageResource = randomCardImages[randomIndex];
-        } else {
-            Toast.makeText(this, "경고: 카드에 할당할 랜덤 이미지가 없습니다.", Toast.LENGTH_SHORT).show();
+        // API를 사용하여 그룹 생성 요청
+        SharedPreferences sharedPreferences = getSharedPreferences("LoginPrefs", MODE_PRIVATE);
+        String userEmail = sharedPreferences.getString("email", "");
+
+        if (userEmail.isEmpty()) {
+            Toast.makeText(this, "로그인 정보가 없습니다. 다시 로그인해주세요.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        // CardItem 생성자 호출: (int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers)
-        // 에 맞게 currentMemberCount를 마지막 인자로 전달
-        CardItem newCard = new CardItem(
-                selectedImageResource,
-                title,
-                subtitle,
-                null, // Class<?> activityToOpen: 새로 만드는 인기 그룹이므로 null
-                selectedCategory,
-                selectedDateCalendar,
-                currentMemberCount      // currentMemberCount (최대 인원) 전달
-        );
+        ApiService apiService = RetrofitClient.getApiService();
 
-        CardDataHolder.addPopularItem(newCard);
-        Toast.makeText(this, "'" + newCard.getTitle() + "' 그룹이 추가되었습니다.", Toast.LENGTH_SHORT).show();
+        CreateGroupRequest request = new CreateGroupRequest();
+        request.setGroup_name(title);
+        request.setDescription(subtitle);
+        request.setEmail(userEmail);
+        request.setTopics(selectedCategory);
+        request.setUseAi(false);
+        request.setMax_members(currentMemberCount);
 
-        finish(); // 현재 액티비티 종료
+        Call<ApiResponse> call = apiService.createGroup(request);
+        call.enqueue(new Callback<ApiResponse>() {
+            @Override
+            public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // 성공적으로 그룹 생성
+                    Toast.makeText(AddCardActivity.this, "'" + title + "' 그룹이 성공적으로 생성되었습니다!", Toast.LENGTH_LONG).show();
+
+                    // 성공 시 홈 화면에 카드를 추가
+                    int selectedImageResource = 0;
+                    if (randomCardImages.length > 0) {
+                        int randomIndex = randomGenerator.nextInt(randomCardImages.length);
+                        selectedImageResource = randomCardImages[randomIndex];
+                    } else {
+                        Log.w("AddCardActivity", "경고: 카드에 할당할 랜덤 이미지가 없습니다.");
+                        // 기본 이미지 또는 오류 처리 필요
+                    }
+
+                    // CardItem 생성자 호출: (int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers, int currentMembers)
+                    CardItem newCard = new CardItem(
+                            selectedImageResource,
+                            title,
+                            subtitle,
+                            null, // Class<?> activityToOpen: 새로 만드는 그룹이므로 null
+                            selectedCategory,
+                            selectedDateCalendar,
+                            currentMemberCount,      // maxMembers (최대 인원) 전달
+                            1 // currentMembers (현재 인원)로 1 전달 - 추가
+                    );
+
+                    CardDataHolder.addPopularItem(newCard); // 인기 그룹 목록에 추가
+
+                    finish(); // 현재 액티비티 종료
+                } else {
+                    // 그룹 생성 실패
+                    String errorBody = "";
+                    try {
+                         if (response.errorBody() != null) {
+                             errorBody = response.errorBody().string();
+                         }
+                    } catch (Exception e) {
+                         Log.e("AddCardActivity", "Error reading error body", e);
+                    }
+                    Log.e("AddCardActivity", "Group creation failed: " + response.code() + ", " + errorBody);
+                    Toast.makeText(AddCardActivity.this, "그룹 생성 실패: " + response.code(), Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse> call, Throwable t) {
+                // 네트워크 오류 등으로 인한 실패
+                Log.e("AddCardActivity", "Group creation network error: " + t.getMessage(), t);
+                Toast.makeText(AddCardActivity.this, "그룹 생성 네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     @Override
