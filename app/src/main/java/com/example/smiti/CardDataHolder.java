@@ -10,18 +10,16 @@ public class CardDataHolder {
     public static List<CardItem> popularItems = new ArrayList<>();
     private static boolean isPopularItemsInitialDataAdded = false;
 
-    // SMBTI 그룹 데이터 리스트 (필요에 따라 이 방식도 사용할 수 있습니다)
-    // public static List<CardItem> smbtiItems = new ArrayList<>();
-    // private static boolean isSmbtiItemsInitialDataAdded = false;
-
     // 인기 그룹 초기 데이터 (앱 시작 시 한 번만 실행되도록)
     public static void initializePopularItemsIfNeeded() {
         if (!isPopularItemsInitialDataAdded && popularItems.isEmpty()) {
-            // 예시: HomeDashboardActivity의 onCreate에서 popularItems에 추가하던 초기 데이터들
-            popularItems.add(new CardItem(R.drawable.image1, "코딩의 신", "자바 기초 스터디 모집", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.JUNE, 10)));
-            popularItems.add(new CardItem(R.drawable.image2, "영어 정복", "매일 영어 회화", GroupSearchActivity.class, "어학", createCalendar(2025, Calendar.JULY, 1)));
-            popularItems.add(new CardItem(R.drawable.image3, "알고리즘 격파", "PS 스터디", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.MAY, 20)));
-            // ... 기타 초기 아이템들
+            // CardItem 생성자:
+            // (int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers)
+            // 마지막 인자로 maxMembers 값을 추가합니다. 예시로 5 또는 10을 사용합니다.
+            popularItems.add(new CardItem(R.drawable.image1, "코딩의 신", "자바 기초 스터디 모집", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.JUNE, 10), 10)); // 예: 최대 10명
+            popularItems.add(new CardItem(R.drawable.image2, "영어 정복", "매일 영어 회화", GroupSearchActivity.class, "어학", createCalendar(2025, Calendar.JULY, 1), 5));     // 예: 최대 5명
+            popularItems.add(new CardItem(R.drawable.image3, "알고리즘 격파", "PS 스터디", GroupSearchActivity.class, "프로그래밍", createCalendar(2025, Calendar.MAY, 20), 8));      // 예: 최대 8명
+            // ... 기타 초기 아이템들도 maxMembers 값을 포함하여 추가 ...
 
             isPopularItemsInitialDataAdded = true; // 초기 데이터 추가 완료
         }
@@ -29,7 +27,9 @@ public class CardDataHolder {
 
     // 아이템 추가 (항상 맨 앞에 추가)
     public static void addPopularItem(CardItem item) {
-        popularItems.add(0, item);
+        if (item != null) {
+            popularItems.add(0, item);
+        }
     }
 
     // 아이템 삭제
@@ -41,6 +41,9 @@ public class CardDataHolder {
 
     // 아이템 리스트 가져오기
     public static List<CardItem> getPopularItems() {
+        // 필요하다면 여기서도 initializePopularItemsIfNeeded()를 호출하여
+        // popularItems가 초기화되지 않은 상태로 반환되는 것을 방지할 수 있습니다.
+        // initializePopularItemsIfNeeded(); // 주석 해제하여 항상 초기화 보장
         return popularItems;
     }
 
@@ -48,32 +51,9 @@ public class CardDataHolder {
     public static Calendar createCalendar(int year, int month, int day) {
         Calendar calendar = Calendar.getInstance();
         // Calendar의 month는 0부터 시작 (예: Calendar.JANUARY는 0)
-        calendar.set(year, month - 1, day);
+        calendar.set(year, month - 1, day); // month - 1 로 수정
         return calendar;
     }
 
-    // --- SMBTI 아이템 관련 메소드 (필요하다면 아래와 같이 추가) ---
-    /*
-    public static void initializeSmbtiItemsIfNeeded() {
-        if (!isSmbtiItemsInitialDataAdded && smbtiItems.isEmpty()) {
-            smbtiItems.add(new CardItem(R.drawable.sample_image_4, "INFP 모여라", "감성 토론방", null, "INFP", createCalendar(2025, Calendar.AUGUST, 5)));
-            smbtiItems.add(new CardItem(R.drawable.sample_image_5, "ESTJ 스터디", "계획적인 스터디", null, "ESTJ", createCalendar(2025, Calendar.SEPTEMBER, 15)));
-            isSmbtiItemsInitialDataAdded = true;
-        }
-    }
 
-    public static void addSmbtiItem(CardItem item) {
-        smbtiItems.add(0, item);
-    }
-
-    public static void removeSmbtiItem(int position) {
-        if (position >= 0 && position < smbtiItems.size()) {
-            smbtiItems.remove(position);
-        }
-    }
-
-    public static List<CardItem> getSmbtiItems() {
-        return smbtiItems;
-    }
-    */
 }
