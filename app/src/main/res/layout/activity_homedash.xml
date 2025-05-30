@@ -97,7 +97,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="실시간 BAST 인기 그룹"
+                    android:text="최근 생성된 그룹"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@android:color/black"/>
@@ -119,6 +119,7 @@
                 android:clipToPadding="false"
                 android:layout_marginTop="8dp"
                 app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
+            <!-- ...이 RecyclerView 뒤에 있던 내용이 잘렸을 수 있으니 원본 확인 필요 -->
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -168,10 +169,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:menu="@menu/bottom_navigation_menu"
-        app:backgroundTint="#FFFFFF"
-        />
+        app:backgroundTint="#FFFFFF" />
 
-    <!-- 오른쪽 하단에 플로팅 액션 버튼 추가 -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_card"
         android:layout_width="wrap_content"
@@ -185,7 +184,18 @@
         app:layout_constraintBottom_toTopOf="@+id/bottom_navigation"
         app:layout_constraintEnd_toEndOf="parent"
         android:contentDescription="새 카드 추가"
-        app:backgroundTint="#143285"
-        />
+        app:backgroundTint="#143285" />
+
+    <!-- ProgressBar 추가 -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="visible"/> <!-- tools:visibility는 디자인 화면에서만 보이도록 함 -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
