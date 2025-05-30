@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -125,6 +126,22 @@ public class BoardActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progress_bar);
         tvEmptyState = findViewById(R.id.tv_empty_state);
         adminIndicatorText = findViewById(R.id.admin_indicator_text);
+
+        // 검색 관련 뷰 초기화
+        View searchLayout = findViewById(R.id.search_layout);
+        ImageButton btnSearch = findViewById(R.id.btn_search);
+
+        // 검색 버튼 클릭 리스너 설정
+        btnSearch.setOnClickListener(v -> {
+            if (searchLayout.getVisibility() == View.VISIBLE) {
+                searchLayout.setVisibility(View.GONE);
+                etSearch.setText("");
+                filterPosts(); // 검색창이 닫힐 때 필터 초기화
+            } else {
+                searchLayout.setVisibility(View.VISIBLE);
+                etSearch.requestFocus();
+            }
+        });
 
         filteredPostList = new ArrayList<>();
         pinnedNoticePost = null;
@@ -558,20 +575,55 @@ public class BoardActivity extends AppCompatActivity {
 
     private Date parseDate(String dateString) {
         if (dateString == null || dateString.isEmpty()) return new Date();
+
+        // 가능한 날짜 형식들
         String[] possibleFormats = {
-                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss",
-                "yyyy-MM-dd HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss"
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy-MM-dd HH:mm:ss.SSS",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd"
         };
+
+        // UTC 시간대 설정
+        TimeZone utc = TimeZone.getTimeZone("UTC");
+        // 한국 시간대 설정
+        TimeZone kst = TimeZone.getTimeZone("Asia/Seoul");
+
         for (String format : possibleFormats) {
             try {
-                SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.US);
-                if (format.endsWith("'Z'")) sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-                return sdf.parse(dateString);
-            } catch (ParseException e) { /* try next format */ }
+                SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.KOREA);
+
+                // UTC 시간인 경우 (Z로 끝나는 형식)
+                if (format.endsWith("'Z'")) {
+                    sdf.setTimeZone(utc);
+                    Date utcDate = sdf.parse(dateString);
+                    if (utcDate != null) {
+                        // UTC 시간을 한국 시간으로 변환
+                        Calendar calendar = Calendar.getInstance();
+                        calendar.setTime(utcDate);
+                        calendar.setTimeZone(kst);
+                        return calendar.getTime();
+                    }
+                } else {
+                    // 이미 로컬 시간인 경우
+                    sdf.setTimeZone(kst);
+                    Date localDate = sdf.parse(dateString);
+                    if (localDate != null) {
+                        return localDate;
+                    }
+                }
+            } catch (ParseException e) {
+                // 다음 형식 시도
+                continue;
+            }
         }
+
         Log.e(TAG, "Failed to parse date: " + dateString);
-        return new Date();
+        return new Date(); // 파싱 실패 시 현재 시간 반환
     }
 
     private void showEmptyState() {
