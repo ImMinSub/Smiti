@@ -56,10 +56,10 @@ public class CardAdapter extends RecyclerView.Adapter<CardAdapter.CardViewHolder
         }
 
         holder.tvCardTitle.setText(currentItem.getTitle());
-        holder.tvCardSubtitle.setText(currentItem.getSubtitle());
+        holder.tvCardSubtitle.setText(currentItem.getDescription());
         holder.tvCardCategory.setText(currentItem.getCategory());
         holder.tvCardStudyDate.setText(currentItem.getStudyDateFormatted());
-        holder.tvCardMemberCount.setText("최대 " + currentItem.getMaxMembers() + "명");
+        holder.tvCardMemberCount.setText(currentItem.getCurrentMembers() + "/" + currentItem.getMaxMembers() + " 명");
 
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
