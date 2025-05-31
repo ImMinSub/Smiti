@@ -255,15 +255,38 @@ public class ChatGroupListActivity extends AppCompatActivity {
             }
         });
     }
-    
-    // 문자열 배열을 그룹으로 파싱하는 메소드 (my_groups 형식의 응답용)
+      // 문자열 배열을 그룹으로 파싱하는 메소드 (my_groups 형식의 응답용)
     private void parseStringArrayAsGroups(JSONArray groupNamesArray, List<ChatGroup> groups) throws JSONException {
         for (int i = 0; i < groupNamesArray.length(); i++) {
-            String groupName = groupNamesArray.getString(i);
+            String groupData = groupNamesArray.getString(i);
             
-            // 그룹 이름에서 실제 ID 찾기
+            String groupName = groupData;
+            String id = String.valueOf(i + 1);
+            
+            // JSON 형식인지 확인하고 파싱
+            if (groupData.trim().startsWith("{") && groupData.trim().endsWith("}")) {
+                try {
+                    JSONObject groupObject = new JSONObject(groupData);
+                    // name 필드에서 실제 그룹 이름 추출
+                    if (groupObject.has("name")) {
+                        groupName = groupObject.getString("name");
+                    }
+                    // id 필드가 있다면 그룹 ID 추출
+                    if (groupObject.has("id")) {
+                        id = groupObject.getString("id");
+                    }
+                    Log.d(TAG, "JSON 파싱: " + groupData + " -> 이름: " + groupName + ", ID: " + id);
+                } catch (JSONException e) {
+                    Log.e(TAG, "JSON 파싱 실패, 원본 문자열 사용: " + groupData, e);
+                    // JSON 파싱 실패시 원본 문자열을 그룹 이름으로 사용
+                }
+            }
+            
+            // 그룹 이름에서 실제 ID 찾기 (매핑이 있는 경우)
             Integer realGroupId = groupNameToIdMap.get(groupName);
-            String id = realGroupId != null ? String.valueOf(realGroupId) : String.valueOf(i + 1);
+            if (realGroupId != null) {
+                id = String.valueOf(realGroupId);
+            }
             
             String description = ""; // 설명 없음
             int memberCount = 0; // 멤버 수 정보 없음 (나중에 API로 가져올 예정)
@@ -271,7 +294,7 @@ public class ChatGroupListActivity extends AppCompatActivity {
             ChatGroup group = new ChatGroup(id, groupName, description, memberCount);
             groups.add(group);
             
-            Log.d(TAG, "그룹 추가: " + groupName + " (실제 ID: " + id + ", 매핑 찾음: " + (realGroupId != null) + ")");
+            Log.d(TAG, "그룹 추가: " + groupName + " (ID: " + id + ", 매핑 찾음: " + (realGroupId != null) + ")");
         }
     }
     
