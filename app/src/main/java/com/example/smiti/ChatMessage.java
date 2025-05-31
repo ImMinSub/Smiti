@@ -89,7 +89,7 @@ public class ChatMessage {
             message.groupId = json.optString("group_id", "");
             message.fileUrl = json.optString("file_url", json.optString("fileUrl", ""));
             message.fileType = json.optString("file_type", json.optString("fileType", ""));
-            message.localId = json.optString("localId", json.optString("localID", null));
+            message.localId = json.optString("localID", json.optString("localId", null));
 
             // 파일 URL이 있으면 자동으로 파일 타입으로 설정
             if (message.fileUrl != null && !message.fileUrl.isEmpty() && 
@@ -123,30 +123,22 @@ public class ChatMessage {
     public String toJson() {
         JSONObject json = new JSONObject();
         try {
-            json.put("type", type);
+            // 지정된 순서대로 필드 추가
             json.put("sender_id", senderId);
             json.put("sender_name", senderName);
             json.put("message", content);
-
-            if (groupId != null && !groupId.isEmpty()) {
-                json.put("group_id", groupId);
-            }
-            if (localId != null && !localId.isEmpty()) {
-                json.put("localId", localId);
-            }
+            json.put("localID", localId); // localID로 통일
+            json.put("type", type);
             
-            // 파일 메시지인 경우 파일 정보 추가
+            // timestamp는 서버가 생성하므로 클라이언트에서는 제외
+            
+            // 파일 메시지인 경우에만 file_url 추가
             if ("file".equals(type)) {
                 if (fileUrl != null && !fileUrl.isEmpty()) {
                     json.put("file_url", fileUrl);
-                    json.put("fileUrl", fileUrl); // 서버 호환성을 위한 중복 키
-                }
-                if (fileType != null && !fileType.isEmpty()) {
-                    json.put("file_type", fileType);
-                    json.put("fileType", fileType); // 서버 호환성을 위한 중복 키
                 }
                 
-                Log.d(TAG, "파일 메시지 JSON 생성: type=file, fileUrl=" + fileUrl + ", fileType=" + fileType);
+                Log.d(TAG, "파일 메시지 JSON 생성: type=file, fileUrl=" + fileUrl);
             }
             
             return json.toString();
