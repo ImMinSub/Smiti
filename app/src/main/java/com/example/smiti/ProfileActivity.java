@@ -14,10 +14,12 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.InputType; // EditText InputType 추가
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText; // EditText 추가
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -31,7 +33,10 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 import com.example.smiti.api.ApiResponse;
+import com.example.smiti.api.ApiService;
 import com.example.smiti.api.RetrofitClient;
+import com.example.smiti.model.Group;
+import com.example.smiti.network.LoginResponse;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -52,6 +57,7 @@ public class ProfileActivity extends AppCompatActivity {
     private static final String PROFILE_IMAGE_FILENAME = "profile_image.jpg";
     private static final String KEY_QUOTE = "quote"; // 상태 메시지 SharedPreferences 키
     private static final int REQUEST_CODE_GALLERY = 1;
+    private static final int REQUEST_CODE_GROUP_DETAIL = 2; // Define a request code
 
     private ImageView profileImageView;
     private TextView tvProfileName;
@@ -68,6 +74,9 @@ public class ProfileActivity extends AppCompatActivity {
     private RelativeLayout btnProfileAccountManagement;
     private RelativeLayout btnProfileBlockedAccounts;
     private RelativeLayout btnProfileLogout;
+
+    // 추가: 나의 스터디 목록을 표시할 레이아웃
+    private LinearLayout layoutMyStudyGroups;
 
     private final String[] DAYS = {"월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"};
     private final String[] DAY_KEYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"};
@@ -90,8 +99,9 @@ public class ProfileActivity extends AppCompatActivity {
         tvStudyTimeValue = findViewById(R.id.tv_study_time_value);
         btnEditStudyTime = findViewById(R.id.btn_edit_study_time);
 
-        layoutStudyAlgo = findViewById(R.id.layout_study_algo);
-        layoutStudyJava = findViewById(R.id.layout_study_java);
+        // 하드코딩된 스터디 레이아웃 find는 제거
+        // layoutStudyAlgo = findViewById(R.id.layout_study_algo);
+        // layoutStudyJava = findViewById(R.id.layout_study_java);
 
         btnProfileNotificationSettings = findViewById(R.id.btn_profile_notification_settings);
         btnProfileEditProfile = findViewById(R.id.btn_profile_edit_profile);
@@ -99,6 +109,9 @@ public class ProfileActivity extends AppCompatActivity {
         btnProfileAccountManagement = findViewById(R.id.btn_profile_account_management);
         btnProfileBlockedAccounts = findViewById(R.id.btn_profile_blocked_accounts);
         btnProfileLogout = findViewById(R.id.btn_profile_logout);
+
+        // 추가: 나의 스터디 목록 레이아웃 찾기
+        layoutMyStudyGroups = findViewById(R.id.layout_my_study_groups);
     }
 
     private void setupClickListeners() {
@@ -112,8 +125,9 @@ public class ProfileActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        layoutStudyAlgo.setOnClickListener(v -> showToast("알고리즘 마스터 스터디 클릭됨"));
-        layoutStudyJava.setOnClickListener(v -> showToast("JAVA 스터디 클릭됨"));
+        // 하드코딩된 스터디 레이아웃 find는 제거
+        // layoutStudyAlgo.setOnClickListener(v -> showToast("알고리즘 마스터 스터디 클릭됨"));
+        // layoutStudyJava.setOnClickListener(v -> showToast("JAVA 스터디 클릭됨"));
 
         btnProfileNotificationSettings.setOnClickListener(v -> showToast("알림 설정 클릭됨"));
         btnProfileEditProfile.setOnClickListener(v -> showToast("프로필 수정 클릭됨 (프로필 이미지 변경은 이미지 직접 클릭)"));
@@ -307,53 +321,73 @@ public class ProfileActivity extends AppCompatActivity {
         }
     }
 
-    // fetchUserGroupsFromServer, updateGroupCountToPrefs, loadStudyTimesFromLocal,
-    // fetchStudyTimesFromServer, saveStudyTimesToLocal, formatTimeString,
-    // getDayKoreanShort, openGallery, onActivityResult, copyImageToInternalStorage,
-    // saveProfileImagePath, logout, showToast 메소드는 이전과 동일하게 유지합니다.
-    // (간결성을 위해 이전 답변과 동일한 부분은 생략하고, 수정된 부분 위주로 표시했습니다.)
-
     private void fetchUserGroupsFromServer(String email) {
-        new Thread(() -> {
-            try {
-                URL url = new URL("http://202.31.246.51:80/users/me/groups?email=" + URLEncoder.encode(email, "UTF-8"));
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                // ... (timeout 등 설정) ...
-                int responseCode = connection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    StringBuilder responseBuilder = new StringBuilder();
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            responseBuilder.append(line);
-                        }
+        ApiService apiService = RetrofitClient.getApiService();
+        Call<List<Group>> call = apiService.getMyGroups(email);
+
+        call.enqueue(new Callback<List<Group>>() {
+            @Override
+            public void onResponse(Call<List<Group>> call, Response<List<Group>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Group> groupList = response.body();
+                    displayUserGroups(groupList);
+                } else {
+                    Log.e(TAG, "getMyGroups Response Error: " + response.code());
+                    if (response.code() != 404) {
+                        showToast("스터디 목록을 불러오는데 실패했습니다. 오류 코드: " + response.code());
                     }
-                    JSONObject responseJson = new JSONObject(responseBuilder.toString());
-                    updateGroupCountToPrefs(responseJson);
                 }
-            } catch (Exception e) { Log.e(TAG, "그룹 정보 조회 오류", e); }
-        }).start();
-    }
-
-    private void updateGroupCountToPrefs(JSONObject groupData) {
-        try {
-            JSONObject dataToUse = groupData.optJSONObject("data");
-            if (dataToUse == null) dataToUse = groupData;
-            int groupCount = 0;
-            if (dataToUse.has("groups") && dataToUse.get("groups") instanceof org.json.JSONArray) {
-                groupCount = dataToUse.optJSONArray("groups").length();
-            } else if (dataToUse.has("count")) {
-                groupCount = dataToUse.optInt("count", 0);
-            } else if (dataToUse.has("groupCount")) {
-                groupCount = dataToUse.optInt("groupCount", 0);
             }
-            SharedPreferences.Editor editor = getSharedPreferences(PREF_NAME, MODE_PRIVATE).edit();
-            editor.putInt("groupCount", groupCount);
-            editor.apply();
-        } catch (Exception e) { Log.e(TAG, "그룹 수 저장 오류", e); }
+
+            @Override
+            public void onFailure(Call<List<Group>> call, Throwable t) {
+                Log.e(TAG, "getMyGroups API Call Failed", t);
+                showToast("스터디 목록 네트워크 오류: " + t.getMessage());
+            }
+        });
     }
 
+    // 사용자 그룹 목록을 동적으로 UI에 표시하는 메소드
+    private void displayUserGroups(List<Group> groupList) {
+        runOnUiThread(() -> {
+            layoutMyStudyGroups.removeAllViews(); // 기존 뷰 모두 제거
+
+            if (groupList.isEmpty()) {
+                TextView noGroupsText = new TextView(this);
+                noGroupsText.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                noGroupsText.setText("참여 중인 스터디가 없습니다.");
+                noGroupsText.setTextSize(14);
+                noGroupsText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                noGroupsText.setPadding(16, 16, 16, 16);
+                layoutMyStudyGroups.addView(noGroupsText);
+            } else {
+                LayoutInflater inflater = LayoutInflater.from(this);
+                for (Group group : groupList) {
+                    // list_item_my_study_group.xml 레이아웃을 생성해야 합니다.
+                    // 임시로 TextView만 추가하거나, 레이아웃 파일을 먼저 생성해야 합니다.
+                    // 여기서는 임시로 TextView만 추가하는 예시를 보여줍니다.
+
+                    View groupItemView = inflater.inflate(R.layout.list_item_my_study_group, layoutMyStudyGroups, false); // list_item_my_study_group.xml 사용
+                    TextView tvGroupName = groupItemView.findViewById(R.id.tv_group_name); // list_item_my_study_group.xml에 tv_group_name 필요
+                    ImageView iconGroup = groupItemView.findViewById(R.id.icon_group); // list_item_my_study_group.xml에 icon_group 필요
+                    ImageView iconArrow = groupItemView.findViewById(R.id.icon_arrow); // list_item_my_study_group.xml에 icon_arrow 필요
+
+                    tvGroupName.setText(group.getName());
+                    // 아이콘과 화살표는 기본값 사용 또는 서버 응답에 따라 설정 가능
+
+                    groupItemView.setOnClickListener(v -> {
+                        Intent intent = new Intent(ProfileActivity.this, GroupDetailActivity.class);
+                        intent.putExtra("groupId", group.getId());
+                        startActivityForResult(intent, REQUEST_CODE_GROUP_DETAIL); // Start for result
+                    });
+
+                    layoutMyStudyGroups.addView(groupItemView);
+                }
+            }
+        });
+    }
 
     private void loadStudyTimesFromLocal() {
         SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
@@ -448,25 +482,33 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_GALLERY && resultCode == RESULT_OK && data != null) {
-            Uri imageUri = data.getData();
-            if (imageUri != null) {
-                try {
-                    String imagePath = copyImageToInternalStorage(imageUri);
-                    if (imagePath != null) {
-                        saveProfileImagePath(imagePath);
-                        loadProfileImageFromFilePath();
-                        showToast("프로필 이미지가 변경되었습니다.");
-                    } else {
-                        showToast("이미지 저장에 실패했습니다.");
+        if (requestCode == REQUEST_CODE_GALLERY) {
+            if (resultCode == RESULT_OK && data != null) {
+                Uri imageUri = data.getData();
+                if (imageUri != null) {
+                    try {
+                        String imagePath = copyImageToInternalStorage(imageUri);
+                        if (imagePath != null) {
+                            saveProfileImagePath(imagePath);
+                            loadProfileImageFromFilePath();
+                            showToast("프로필 이미지가 변경되었습니다.");
+                        } else {
+                            showToast("이미지 저장에 실패했습니다.");
+                        }
+                    } catch (IOException e) {
+                        Log.e(TAG, "이미지 복사 중 IO 오류", e);
+                        showToast("이미지 처리 중 오류가 발생했습니다.");
+                    } catch (Exception e) {
+                        Log.e(TAG, "이미지 처리 중 알 수 없는 오류가 발생했습니다.", e);
+                        showToast("이미지 처리 중 알 수 없는 오류가 발생했습니다.");
                     }
-                } catch (IOException e) {
-                    Log.e(TAG, "이미지 복사 중 IO 오류", e);
-                    showToast("이미지 처리 중 오류가 발생했습니다.");
-                } catch (Exception e) {
-                    Log.e(TAG, "이미지 처리 중 일반 오류", e);
-                    showToast("이미지 처리 중 알 수 없는 오류가 발생했습니다.");
                 }
+            }
+        } else if (requestCode == REQUEST_CODE_GROUP_DETAIL) {
+            // Check if the result is from GroupDetailActivity and indicates a change (e.g., group left)
+            if (resultCode == RESULT_OK) {
+                // Refresh the study group list
+                loadProfileData();
             }
         }
     }
