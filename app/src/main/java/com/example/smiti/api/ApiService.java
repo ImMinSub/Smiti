@@ -2,6 +2,7 @@ package com.example.smiti.api;
 
 //Retrofit을 사용한 API 엔드포인트 정의 인터페이스스
 import java.util.Map;
+import java.util.List;
 
 import okhttp3.MultipartBody; // 추가
 import okhttp3.RequestBody;   // 추가
@@ -20,6 +21,9 @@ import retrofit2.http.Path;
 import retrofit2.http.Query;
 import androidx.annotation.Nullable; // @Nullable 사용 시 추가
 
+import com.example.smiti.model.GroupListApiResponse;
+import com.example.smiti.model.JoinGroupRequest; // JoinGroupRequest 모델 import
+import com.example.smiti.model.Group;
 
 public interface ApiService {
     // 사용자 관련 API
@@ -36,7 +40,7 @@ public interface ApiService {
     Call<ApiResponse> getMyInfo(@Query("email") String email);
 
     @GET("users/me/groups")
-    Call<ApiResponse> getMyGroups(@Query("email") String email);
+    Call<List<Group>> getMyGroups(@Query("email") String email);
 
     // 그룹 관련 API
     @POST("groups/recommend")
@@ -45,8 +49,11 @@ public interface ApiService {
     @GET("groups")
     Call<ApiResponse> getAllGroups();
 
+    @GET("groups")
+    Call<GroupListApiResponse> getGroupsForHomeDashboard();
+
     @GET("groups/{groupId}")
-    Call<ApiResponse> getGroupDetail(@Path("groupId") int groupId);
+    Call<Group> getGroupDetail(@Path("groupId") int groupId, @Query("user_email") String userEmail);
 
     @GET("groups")
     Call<ApiResponse> searchGroups(@Query("keyword") String keyword);
@@ -56,6 +63,9 @@ public interface ApiService {
 
     @POST("groups/{groupId}/users")
     Call<ApiResponse> addUserToGroup(@Path("groupId") int groupId, @Body JoinGroupRequest request);
+
+    @POST("groups/users")
+    Call<Void> joinGroup(@Body JoinGroupRequest request);
 
     // 그룹 멤버 조회 API 추가
     @GET("groups/{groupId}/users")
@@ -128,6 +138,10 @@ public interface ApiService {
 
     @GET("board_uploads/{fileName}")
     Call<ResponseBody> downloadBoardFile(@Path("fileName") String fileName);
+
+    // 그룹 탈퇴 API
+    @HTTP(method = "DELETE", path = "groups/{groupId}/users", hasBody = true)
+    Call<ApiResponse> deleteGroupUser(@Path("groupId") int groupId, @Body Map<String, String> request);
 
     // ... (나머지 API 정의들은 이전과 동일하다고 가정) ...
     // 문서 기반 AI 질의응답 API
