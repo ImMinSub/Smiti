@@ -135,9 +135,6 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             // 메시지 추가
             displayList.add(message);
         }
-        
-        Log.d(TAG, "표시 리스트 업데이트 완료: 원본 " + originalMessageList.size() + 
-                  "개 메시지 -> 표시 " + displayList.size() + "개 항목 (날짜 구분선 포함)");
     }
     
     // 날짜 구분선용 날짜 포맷팅
@@ -175,24 +172,44 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
-    // 첫 번째 메시지인지 확인하는 헬퍼 메서드
+    // 첫 번째 메시지인지 확인하는 헬퍼 메서드 - 수정된 버전
     private boolean isFirstMessage(Message targetMessage) {
         if (originalMessageList == null || originalMessageList.isEmpty()) {
             return false;
         }
         
-        for (int i = 0; i < originalMessageList.size(); i++) {
-            Message message = originalMessageList.get(i);
-            if (message == targetMessage) {
-                return i == 0; // 첫 번째 메시지인지 확인
-            }
+        // 시간순으로 정렬된 첫 번째 메시지인지 확인
+        Message firstMessage = originalMessageList.get(0);
+        
+        // 동일한 메시지 객체이거나 같은 내용과 타임스탬프를 가진 메시지인지 확인
+        if (targetMessage == firstMessage) {
+            return true;
         }
+        
+        // 메시지 내용과 타임스탬프가 같은지 확인 (동일한 메시지의 다른 인스턴스일 가능성)
+        if (targetMessage != null && firstMessage != null) {
+            return targetMessage.getTimestamp() == firstMessage.getTimestamp() &&
+                   java.util.Objects.equals(targetMessage.getMessage(), firstMessage.getMessage()) &&
+                   java.util.Objects.equals(targetMessage.getSenderId(), firstMessage.getSenderId());
+        }
+        
         return false;
     }
 
     @Override
     public int getItemViewType(int position) {
+        // 안전장치: position이 유효한지 확인
+        if (position < 0 || position >= displayList.size()) {
+            Log.w(TAG, "잘못된 position: " + position + ", displayList.size(): " + displayList.size());
+            return VIEW_TYPE_MESSAGE_RECEIVED; // 기본값 반환
+        }
+        
         Object item = displayList.get(position);
+        
+        // 스크롤 시 과도한 로그 출력 방지 - 디버깅 필요시에만 활성화
+        // Log.d(TAG, "=== getItemViewType 상세 로그 ===");
+        // Log.d(TAG, "position: " + position);
+        // Log.d(TAG, "item type: " + item.getClass().getSimpleName());
         
         // 로딩 인디케이터인 경우
         if (item instanceof String && "LOADING_INDICATOR".equals(item)) {
@@ -205,51 +222,51 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
         
         // 메시지인 경우
+        if (!(item instanceof Message)) {
+            Log.w(TAG, "예상치 못한 아이템 타입: " + item.getClass().getSimpleName());
+            return VIEW_TYPE_MESSAGE_RECEIVED; // 기본값 반환
+        }
+        
         Message message = (Message) item;
         String senderId = message.getSenderId(); // 메시지 발신자 ID (이메일)
         String senderName = message.getSenderName(); // 메시지 발신자 이름
 
-        // 시스템 메시지이고 첫 메시지인 경우 버튼이 있는 메시지 타입으로 설정
-        if ("system".equals(senderId) && isFirstMessage(message)) {
+        // 스크롤 시 과도한 로그 출력 방지 - 디버깅 필요시에만 활성화
+        // Log.d(TAG, "메시지 정보:");
+        // Log.d(TAG, "  senderId: [" + senderId + "]");
+        // Log.d(TAG, "  senderName: [" + senderName + "]");
+        // Log.d(TAG, "  message: [" + message.getMessage() + "]");
+
+        // 시스템 또는 봇 메시지인 경우 버튼 표시
+        if (("system".equals(senderId) || "bot".equals(senderId))) {
             return VIEW_TYPE_MESSAGE_WITH_BUTTONS;
         }
         
         // 현재 사용자 메시지인지 정확히 판단 (강화된 로직)
         boolean isCurrentUser = isCurrentUserMessage(senderId, senderName);
         
-        Log.d(TAG, "메시지 소유권 판단: senderId=" + senderId + 
-                  ", senderName=" + senderName + 
-                  ", currentUserIdent=" + currentUserIdentifier + 
-                  ", isCurrentUser=" + isCurrentUser);
-        
-        return isCurrentUser ? VIEW_TYPE_MESSAGE_SENT : VIEW_TYPE_MESSAGE_RECEIVED;
+        if (isCurrentUser) {
+            return VIEW_TYPE_MESSAGE_SENT;
+        } else {
+            return VIEW_TYPE_MESSAGE_RECEIVED;
+        }
     }
     
     // 현재 사용자 메시지인지 정확히 판단하는 메서드 (강화된 버전)
     private boolean isCurrentUserMessage(String senderId, String senderName) {
         if (currentUserIdentifier == null || currentUserIdentifier.isEmpty()) {
-            Log.w(TAG, "현재 사용자 식별자가 설정되지 않음");
             return false;
         }
         
-        // 디버깅을 위한 상세 로그
-        Log.d(TAG, "=== MessageAdapter 메시지 소유권 판단 ===");
-        Log.d(TAG, "현재 사용자 식별자: [" + currentUserIdentifier + "]");
-        Log.d(TAG, "메시지 발신자 ID: [" + senderId + "]");
-        Log.d(TAG, "메시지 발신자 이름: [" + senderName + "]");
-        
         // 1. 정확한 이메일 매칭 (대소문자 무시)
         if (senderId != null && currentUserIdentifier.equalsIgnoreCase(senderId.trim())) {
-            Log.d(TAG, "✓ 정확한 이메일 매칭으로 현재 사용자 메시지 확인됨");
             return true;
         }
         
         // 2. 이메일 앞부분 매칭 (@ 앞부분)
         if (senderId != null && currentUserIdentifier.contains("@")) {
             String emailPrefix = currentUserIdentifier.split("@")[0];
-            Log.d(TAG, "이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderId.trim() + "]");
             if (emailPrefix.equalsIgnoreCase(senderId.trim())) {
-                Log.d(TAG, "✓ 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
                 return true;
             }
         }
@@ -257,20 +274,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         // 3. 발신자명으로 판단 - 강화된 로직
         if (senderName != null) {
             String normalizedName = senderName.trim().toLowerCase();
-            Log.d(TAG, "발신자명 정규화: [" + normalizedName + "]");
             
             // "나" 또는 "me" 키워드 확인
             if (normalizedName.equals("나") || normalizedName.equals("me") || normalizedName.equals("myself")) {
-                Log.d(TAG, "✓ 발신자명 키워드로 현재 사용자 메시지 확인됨");
                 return true;
             }
             
             // 현재 사용자 이메일의 앞부분과 비교
             if (currentUserIdentifier.contains("@")) {
                 String emailPrefix = currentUserIdentifier.split("@")[0];
-                Log.d(TAG, "발신자명과 이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderName.trim() + "]");
                 if (emailPrefix.equalsIgnoreCase(senderName.trim())) {
-                    Log.d(TAG, "✓ 발신자명과 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
                     return true;
                 }
             }
@@ -281,16 +294,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             String cleanSenderId = senderId.replaceAll("\\s+", "").toLowerCase();
             String cleanCurrentId = currentUserIdentifier.replaceAll("\\s+", "").toLowerCase();
             
-            Log.d(TAG, "공백 제거 후 비교: [" + cleanCurrentId + "] contains [" + cleanSenderId + "]");
-            
             if (cleanCurrentId.contains(cleanSenderId) || cleanSenderId.contains(cleanCurrentId)) {
-                Log.d(TAG, "✓ 부분 문자열 매칭으로 현재 사용자 메시지 확인됨");
                 return true;
             }
         }
         
-        Log.d(TAG, "✗ 현재 사용자 메시지가 아님으로 판단됨");
-        Log.d(TAG, "========================================");
         return false;
     }
 
@@ -324,19 +332,33 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        // 안전장치: position이 유효한지 확인
+        if (position < 0 || position >= displayList.size()) {
+            Log.w(TAG, "onBindViewHolder - 잘못된 position: " + position + ", displayList.size(): " + displayList.size());
+            return;
+        }
+        
         Object item = displayList.get(position);
         
         // ViewHolder 타입에 따라 데이터 바인딩
         if (holder instanceof LoadingIndicatorHolder) {
             ((LoadingIndicatorHolder) holder).bind(loadingMessage);
         } else if (holder instanceof DateSeparatorHolder) {
-            ((DateSeparatorHolder) holder).bind((DateSeparatorItem) item);
+            if (item instanceof DateSeparatorItem) {
+                ((DateSeparatorHolder) holder).bind((DateSeparatorItem) item);
+            }
         } else if (holder instanceof SentMessageHolder) {
-            ((SentMessageHolder) holder).bind((Message) item);
+            if (item instanceof Message) {
+                ((SentMessageHolder) holder).bind((Message) item);
+            }
         } else if (holder instanceof ReceivedMessageHolder) {
-            ((ReceivedMessageHolder) holder).bind((Message) item);
+            if (item instanceof Message) {
+                ((ReceivedMessageHolder) holder).bind((Message) item);
+            }
         } else if (holder instanceof ButtonMessageHolder) {
-            ((ButtonMessageHolder) holder).bind((Message) item);
+            if (item instanceof Message) {
+                ((ButtonMessageHolder) holder).bind((Message) item);
+            }
         }
     }
 
@@ -351,49 +373,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             return;
         }
         
-        // 강화된 중복 메시지 체크
+        // 중복 메시지인지 확인
         if (isDuplicateMessageEnhanced(message)) {
-            Log.d(TAG, "중복 메시지 감지됨, 추가하지 않음: " + message.getMessage());
+            // 중복 메시지 감지 로그 제거 - 스크롤 시 과도한 출력 방지
             return;
         }
         
-        // 동일한 내용의 메시지가 이미 있는지 확인 (시간 차이 고려)
-        synchronized (originalMessageList) {
-            for (int i = originalMessageList.size() - 1; i >= 0; i--) {
-                Message existingMessage = originalMessageList.get(i);
-                
-                // 동일한 내용이고 시간 차이가 10초 이내인 메시지가 있으면 중복으로 판단
-                if (isSameMessageContent(existingMessage, message) && 
-                    Math.abs(existingMessage.getTimestamp() - message.getTimestamp()) < 10000) {
-                    
-                    Log.d(TAG, "동일 내용 메시지 중복 감지: 기존=" + existingMessage.getTimestamp() + 
-                              ", 새로운=" + message.getTimestamp());
-                    
-                    // 더 최신 메시지로 교체
-                    if (message.getTimestamp() > existingMessage.getTimestamp()) {
-                        originalMessageList.set(i, message);
-                        updateDisplayList();
-                        notifyDataSetChanged();
-                        Log.d(TAG, "더 최신 메시지로 교체됨");
-                    }
-                    return;
-                }
-                
-                // 성능을 위해 최근 20개 메시지만 확인
-                if (originalMessageList.size() - i > 20) {
-                    break;
-                }
-            }
-            
-            // 중복이 아니면 새 메시지 추가
-            originalMessageList.add(message);
-        }
+        originalMessageList.add(message);
         
         updateDisplayList();
         notifyItemInserted(displayList.size() - 1);
-        
-        Log.d(TAG, "새 메시지 추가됨: " + message.getSenderName() + " - " + 
-                  message.getMessage().substring(0, Math.min(20, message.getMessage().length())));
     }
     
     // 메시지 내용이 동일한지 확인하는 메서드
@@ -428,19 +417,19 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         for (Message existingMessage : originalMessageList) {
             String existingHash = generateMessageHashEnhanced(existingMessage);
             if (newMessageHash.equals(existingHash)) {
-                Log.d(TAG, "해시 기반 중복 메시지 감지");
+                // 해시 기반 중복 감지 로그 제거 - 스크롤 시 과도한 출력 방지
                 return true;
             }
             
             // 정확한 메시지 비교
             if (isSameMessageExact(newMessage, existingMessage)) {
-                Log.d(TAG, "정확한 비교로 중복 메시지 감지");
+                // 정확한 비교 중복 감지 로그 제거
                 return true;
             }
             
             // 유사 메시지 체크 (내용과 시간이 비슷한 경우)
             if (isSimilarMessage(newMessage, existingMessage)) {
-                Log.d(TAG, "유사 메시지로 중복 감지");
+                // 유사 메시지 중복 감지 로그 제거
                 return true;
             }
         }
@@ -474,14 +463,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
         hashBuilder.append(content != null ? content.hashCode() : 0);
         
-        // 파일 정보 (있는 경우)
-        if (message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
-            hashBuilder.append("_file_");
-            hashBuilder.append(message.getFileUrl().trim().hashCode());
-            if (message.getFileType() != null) {
+        // 파일 정보 처리 개선 - 파일 메시지는 URL을 주요 식별자로 사용
+        if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
+            hashBuilder.append("_FILE_");
+            hashBuilder.append(message.getFileUrl().trim()); // URL 전체 사용
+            if (message.getFileType() != null && !message.getFileType().isEmpty()) {
                 hashBuilder.append("_");
                 hashBuilder.append(message.getFileType().trim());
             }
+        } else {
+            hashBuilder.append("_TEXT");
         }
         
         return hashBuilder.toString();
@@ -616,18 +607,13 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         void bind(Message message) {
-            // 파일이 있는 경우 적절한 메시지 표시
+            // 파일이 있는 경우 텍스트 숨기기, 파일만 표시
             if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
-                String fileType = message.getFileType();
-                if ("image".equals(fileType)) {
-                    messageText.setText("이미지를 전송했습니다.");
-                } else if ("pdf".equals(fileType)) {
-                    messageText.setText("PDF 문서를 전송했습니다.");
-                } else {
-                    messageText.setText("파일을 전송했습니다.");
-                }
+                // 파일 메시지인 경우 텍스트 숨기기
+                messageText.setVisibility(View.GONE);
             } else {
                 // 일반 텍스트 메시지
+                messageText.setVisibility(View.VISIBLE);
                 messageText.setText(message.getMessage());
             }
 
@@ -649,82 +635,78 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 pdfContainer.setVisibility(View.GONE);
             }
 
-            // 파일 처리 로직
+            // 파일 처리 로직 - 실제 파일 URL이 있는 경우만 처리
             if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
                 final String fileUrl = message.getFileUrl();
                 String fileType = message.getFileType();
                 
-                // fileType이 null인 경우 파일 URL에서 타입 추측
-                if (fileType == null || fileType.isEmpty()) {
-                    if (fileUrl.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$")) {
-                        fileType = "image";
-                    } else if (fileUrl.toLowerCase().endsWith(".pdf")) {
-                        fileType = "pdf";
-                    } else {
-                        fileType = "file"; // 기본값
-                    }
-                }
-                
-                final String finalFileType = fileType; // final 변수로 만들어 람다에서 사용
-                
-                if ("image".equals(fileType) && fileImageView != null && imageContainer != null) {
-                    // 이미지 파일 표시
-                    imageContainer.setVisibility(View.VISIBLE);
-                    
-                    try {
-                        // 상대 경로 처리
-                        String imageUrl = fileUrl;
-                        if (imageUrl.startsWith("/")) {
-                            imageUrl = "http://202.31.246.51:80" + imageUrl;
+                // 이미지 파일인 경우
+                if ("image".equals(fileType) || (fileType != null && fileType.startsWith("image"))) {
+                    if (imageContainer != null) {
+                        imageContainer.setVisibility(View.VISIBLE);
+                        if (fileImageView != null) {
+                            // Glide로 이미지 로드
+                            String fullImageUrl = fileUrl.startsWith("http") ? fileUrl : 
+                                                  "http://202.31.246.51:80" + fileUrl;
+                            
+                            Glide.with(context)
+                                .load(fullImageUrl)
+                                .error(R.drawable.ic_image_error)
+                                .into(fileImageView);
                         }
                         
-                        // Glide로 이미지 로드
-                        Glide.with(context)
-                            .load(imageUrl)
-                            .placeholder(R.drawable.ic_image_loading)
-                            .error(R.drawable.ic_image_error)
-                            .into(fileImageView);
-                        
-                        // 이미지 클릭 이벤트 설정
-                        fileImageView.setOnClickListener(v -> {
-                            openFileUrl(fileUrl, finalFileType);
-                        });
-                        
-                        // 다운로드 버튼 설정
                         if (imageDownloadBtn != null) {
                             imageDownloadBtn.setOnClickListener(v -> {
                                 String filename = extractFilenameFromUrl(fileUrl);
                                 downloadFile(fileUrl, filename, "image/*");
                             });
                         }
+                    }
+                    
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.GONE);
+                    }
+                } 
+                // PDF 파일인 경우
+                else if ("pdf".equals(fileType) || (fileUrl != null && fileUrl.toLowerCase().endsWith(".pdf"))) {
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.VISIBLE);
+                        if (pdfFilename != null) {
+                            String filename = extractFilenameFromUrl(fileUrl);
+                            pdfFilename.setText(filename.isEmpty() ? "document.pdf" : filename);
+                        }
                         
-                    } catch (Exception e) {
-                        Log.e(TAG, "이미지 로드 오류: " + fileUrl, e);
+                        if (pdfDownloadBtn != null) {
+                            pdfDownloadBtn.setOnClickListener(v -> {
+                                String filename = extractFilenameFromUrl(fileUrl);
+                                downloadFile(fileUrl, filename.isEmpty() ? "document.pdf" : filename, "application/pdf");
+                            });
+                        }
+                    }
+                    
+                    if (imageContainer != null) {
                         imageContainer.setVisibility(View.GONE);
                     }
-                    
-                } else if ("pdf".equals(fileType) && pdfContainer != null) {
-                    // PDF 파일 표시
-                    pdfContainer.setVisibility(View.VISIBLE);
-                    
-                    if (pdfFilename != null) {
-                        String filename = extractFilenameFromUrl(fileUrl);
-                        pdfFilename.setText(filename);
-                    }
-                    
-                    // PDF 다운로드 버튼 설정
-                    if (pdfDownloadBtn != null) {
-                        pdfDownloadBtn.setOnClickListener(v -> {
+                } 
+                // 기타 파일인 경우 (PDF 컨테이너 사용)
+                else {
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.VISIBLE);
+                        if (pdfFilename != null) {
                             String filename = extractFilenameFromUrl(fileUrl);
-                            downloadFile(fileUrl, filename, "application/pdf");
-                        });
+                            pdfFilename.setText(filename.isEmpty() ? "파일" : filename);
+                        }
+                        
+                        if (pdfDownloadBtn != null) {
+                            pdfDownloadBtn.setOnClickListener(v -> {
+                                String filename = extractFilenameFromUrl(fileUrl);
+                                downloadFile(fileUrl, filename.isEmpty() ? "file" : filename, "*/*");
+                            });
+                        }
                     }
                     
-                    // PDF 컨테이너 클릭 이벤트 설정
-                    if (pdfFileContainer != null) {
-                        pdfFileContainer.setOnClickListener(v -> {
-                            openFileUrl(fileUrl, finalFileType);
-                        });
+                    if (imageContainer != null) {
+                        imageContainer.setVisibility(View.GONE);
                     }
                 }
             }
@@ -762,18 +744,13 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void bind(Message message) {
             nameText.setText(message.getSenderName());
             
-            // 파일이 있는 경우 적절한 메시지 표시
+            // 파일이 있는 경우 텍스트 숨기기, 파일만 표시
             if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
-                String fileType = message.getFileType();
-                if ("image".equals(fileType)) {
-                    messageText.setText("이미지를 전송했습니다.");
-                } else if ("pdf".equals(fileType)) {
-                    messageText.setText("PDF 문서를 전송했습니다.");
-                } else {
-                    messageText.setText("파일을 전송했습니다.");
-                }
+                // 파일 메시지인 경우 텍스트 숨기기
+                messageText.setVisibility(View.GONE);
             } else {
                 // 일반 텍스트 메시지
+                messageText.setVisibility(View.VISIBLE);
                 messageText.setText(message.getMessage());
             }
 
@@ -800,82 +777,78 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 pdfContainer.setVisibility(View.GONE);
             }
 
-            // 파일 처리 로직
+            // 파일 처리 로직 - 실제 파일 URL이 있는 경우만 처리
             if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
                 final String fileUrl = message.getFileUrl();
                 String fileType = message.getFileType();
                 
-                // fileType이 null인 경우 파일 URL에서 타입 추측
-                if (fileType == null || fileType.isEmpty()) {
-                    if (fileUrl.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$")) {
-                        fileType = "image";
-                    } else if (fileUrl.toLowerCase().endsWith(".pdf")) {
-                        fileType = "pdf";
-                    } else {
-                        fileType = "file"; // 기본값
-                    }
-                }
-                
-                final String finalFileType = fileType; // final 변수로 만들어 람다에서 사용
-                
-                if ("image".equals(fileType) && fileImageView != null && imageContainer != null) {
-                    // 이미지 파일 표시
-                    imageContainer.setVisibility(View.VISIBLE);
-                    
-                    try {
-                        // 상대 경로 처리
-                        String imageUrl = fileUrl;
-                        if (imageUrl.startsWith("/")) {
-                            imageUrl = "http://202.31.246.51:80" + imageUrl;
+                // 이미지 파일인 경우
+                if ("image".equals(fileType) || (fileType != null && fileType.startsWith("image"))) {
+                    if (imageContainer != null) {
+                        imageContainer.setVisibility(View.VISIBLE);
+                        if (fileImageView != null) {
+                            // Glide로 이미지 로드
+                            String fullImageUrl = fileUrl.startsWith("http") ? fileUrl : 
+                                                  "http://202.31.246.51:80" + fileUrl;
+                            
+                            Glide.with(context)
+                                .load(fullImageUrl)
+                                .error(R.drawable.ic_image_error)
+                                .into(fileImageView);
                         }
                         
-                        // Glide로 이미지 로드
-                        Glide.with(context)
-                            .load(imageUrl)
-                            .placeholder(R.drawable.ic_image_loading)
-                            .error(R.drawable.ic_image_error)
-                            .into(fileImageView);
-                        
-                        // 이미지 클릭 이벤트 설정
-                        fileImageView.setOnClickListener(v -> {
-                            openFileUrl(fileUrl, finalFileType);
-                        });
-                        
-                        // 다운로드 버튼 설정
                         if (imageDownloadBtn != null) {
                             imageDownloadBtn.setOnClickListener(v -> {
                                 String filename = extractFilenameFromUrl(fileUrl);
                                 downloadFile(fileUrl, filename, "image/*");
                             });
                         }
+                    }
+                    
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.GONE);
+                    }
+                } 
+                // PDF 파일인 경우
+                else if ("pdf".equals(fileType) || (fileUrl != null && fileUrl.toLowerCase().endsWith(".pdf"))) {
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.VISIBLE);
+                        if (pdfFilename != null) {
+                            String filename = extractFilenameFromUrl(fileUrl);
+                            pdfFilename.setText(filename.isEmpty() ? "document.pdf" : filename);
+                        }
                         
-                    } catch (Exception e) {
-                        Log.e(TAG, "이미지 로드 오류: " + fileUrl, e);
+                        if (pdfDownloadBtn != null) {
+                            pdfDownloadBtn.setOnClickListener(v -> {
+                                String filename = extractFilenameFromUrl(fileUrl);
+                                downloadFile(fileUrl, filename.isEmpty() ? "document.pdf" : filename, "application/pdf");
+                            });
+                        }
+                    }
+                    
+                    if (imageContainer != null) {
                         imageContainer.setVisibility(View.GONE);
                     }
-                    
-                } else if ("pdf".equals(fileType) && pdfContainer != null) {
-                    // PDF 파일 표시
-                    pdfContainer.setVisibility(View.VISIBLE);
-                    
-                    if (pdfFilename != null) {
-                        String filename = extractFilenameFromUrl(fileUrl);
-                        pdfFilename.setText(filename);
-                    }
-                    
-                    // PDF 다운로드 버튼 설정
-                    if (pdfDownloadBtn != null) {
-                        pdfDownloadBtn.setOnClickListener(v -> {
+                } 
+                // 기타 파일인 경우 (PDF 컨테이너 사용)
+                else {
+                    if (pdfContainer != null) {
+                        pdfContainer.setVisibility(View.VISIBLE);
+                        if (pdfFilename != null) {
                             String filename = extractFilenameFromUrl(fileUrl);
-                            downloadFile(fileUrl, filename, "application/pdf");
-                        });
+                            pdfFilename.setText(filename.isEmpty() ? "파일" : filename);
+                        }
+                        
+                        if (pdfDownloadBtn != null) {
+                            pdfDownloadBtn.setOnClickListener(v -> {
+                                String filename = extractFilenameFromUrl(fileUrl);
+                                downloadFile(fileUrl, filename.isEmpty() ? "file" : filename, "*/*");
+                            });
+                        }
                     }
                     
-                    // PDF 컨테이너 클릭 이벤트 설정
-                    if (pdfFileContainer != null) {
-                        pdfFileContainer.setOnClickListener(v -> {
-                            openFileUrl(fileUrl, finalFileType);
-                        });
+                    if (imageContainer != null) {
+                        imageContainer.setVisibility(View.GONE);
                     }
                 }
             }
@@ -904,21 +877,21 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (buttonQuestion1 != null) {
                 buttonQuestion1.setOnClickListener(v -> {
                     if (buttonClickListener != null) {
-                        buttonClickListener.onQuestionButtonClick("SMBTI 테스트를 해보고 싶어요");
+                        buttonClickListener.onQuestionButtonClick("SMBTI가 뭐야?");
                     }
                 });
             }
             if (buttonQuestion2 != null) {
                 buttonQuestion2.setOnClickListener(v -> {
                     if (buttonClickListener != null) {
-                        buttonClickListener.onQuestionButtonClick("스터디 그룹을 찾고 있어요");
+                        buttonClickListener.onQuestionButtonClick("SMBTI의 종류를 알려줘.");
                     }
                 });
             }
             if (buttonQuestion3 != null) {
                 buttonQuestion3.setOnClickListener(v -> {
                     if (buttonClickListener != null) {
-                        buttonClickListener.onQuestionButtonClick("공부 시간을 관리하고 싶어요");
+                        buttonClickListener.onQuestionButtonClick("나의 SMBTI에 대해 알려줘");
                     }
                 });
             }
