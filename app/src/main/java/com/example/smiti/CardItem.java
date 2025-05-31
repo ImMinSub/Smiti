@@ -7,14 +7,16 @@ import java.util.Locale;
 public class CardItem {
     private int imageResource;
     private String title;
-    private String subtitle;
+    private String subtitle; // 그룹 설명으로 사용될 필드
     private Class<?> activityToOpen; // 클릭 시 열릴 액티비티
     private String category;         // 스터디 카테고리
     private Calendar studyDate;      // 스터디 시작일
     private int maxMembers;          // 스터디 최대 인원 (새로 추가된 필드)
+    private int currentMembers;       // 현재 인원 필드 추가
+    private String groupId;           // 그룹 ID 필드 추가
 
 
-    public CardItem(int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers) {
+    public CardItem(int imageResource, String title, String subtitle, Class<?> activityToOpen, String category, Calendar studyDate, int maxMembers, int currentMembers, String groupId) {
         this.imageResource = imageResource;
         this.title = title;
         this.subtitle = subtitle;
@@ -22,6 +24,8 @@ public class CardItem {
         this.category = category;
         this.studyDate = studyDate;
         this.maxMembers = maxMembers;
+        this.currentMembers = currentMembers; // 현재 인원 설정
+        this.groupId = groupId; // 그룹 ID 설정
     }
 
     public int getImageResource() {
@@ -32,7 +36,7 @@ public class CardItem {
         return title;
     }
 
-    public String getSubtitle() {
+    public String getDescription() { // subtitle getter 이름 변경
         return subtitle;
     }
 
@@ -51,6 +55,15 @@ public class CardItem {
 
     public int getMaxMembers() {
         return maxMembers;
+    }
+
+    // currentMembers getter 추가
+    public int getCurrentMembers() {
+        return currentMembers;
+    }
+
+    public String getGroupId() { // 그룹 ID getter 추가
+        return groupId;
     }
 
     public String getStudyDateFormatted() {
