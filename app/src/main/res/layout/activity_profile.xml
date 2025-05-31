@@ -133,70 +133,14 @@
                         android:textStyle="bold"
                         android:textColor="@android:color/black"
                         android:layout_marginBottom="8dp"/>
-                    <RelativeLayout
-                        android:id="@+id/layout_study_algo"
+
+                    <!-- 서버에서 불러온 나의 스터디 목록이 추가될 레이아웃 -->
+                    <LinearLayout
+                        android:id="@+id/layout_my_study_groups"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:paddingTop="8dp"
-                        android:paddingBottom="8dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:id="@+id/icon_study_algo"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_agenda"
-                            app:tint="#808080"
-                            android:layout_centerVertical="true"
-                            android:layout_marginEnd="16dp"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_toEndOf="@id/icon_study_algo"
-                            android:layout_centerVertical="true"
-                            android:text="알고리즘 마스터"
-                            android:textSize="15sp"/>
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_media_play"
-                            android:layout_alignParentEnd="true"
-                            android:layout_centerVertical="true"
-                            app:tint="#B0B0B0"/>
-                    </RelativeLayout>
-                    <RelativeLayout
-                        android:id="@+id/layout_study_java"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="8dp"
-                        android:paddingBottom="8dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:id="@+id/icon_study_java"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_agenda"
-                            app:tint="#808080"
-                            android:layout_centerVertical="true"
-                            android:layout_marginEnd="16dp"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_toEndOf="@id/icon_study_java"
-                            android:layout_centerVertical="true"
-                            android:text="JAVA 스터디"
-                            android:textSize="15sp"/>
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_media_play"
-                            android:layout_alignParentEnd="true"
-                            android:layout_centerVertical="true"
-                            app:tint="#B0B0B0"/>
-                    </RelativeLayout>
+                        android:orientation="vertical"/>
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
