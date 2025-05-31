@@ -9,6 +9,7 @@ public class CreateGroupRequest {
     private String email;
     private String topics;
     private boolean useAi;
+    private int max_members;
 
     public CreateGroupRequest() {
     }
@@ -51,5 +52,13 @@ public class CreateGroupRequest {
 
     public void setUseAi(boolean useAi) {
         this.useAi = useAi;
+    }
+
+    public int getMax_members() {
+        return max_members;
+    }
+
+    public void setMax_members(int max_members) {
+        this.max_members = max_members;
     }
 } 
