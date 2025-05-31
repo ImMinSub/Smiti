@@ -40,6 +40,7 @@ public class ChatbotActivity extends AppCompatActivity {
     private static final String PREF_NAME = "LoginPrefs";
     private static final String KEY_USER_ID = "user_id";
     private static final String KEY_NAME = "name";
+    private static final String KEY_MBTI = "mbti";
     
     // 서버 API 엔드포인트
     private static final String BASE_URL = "http://202.31.246.51:80";
@@ -56,6 +57,7 @@ public class ChatbotActivity extends AppCompatActivity {
     
     private String currentUserId;
     private String currentUserName;
+    private String currentUserSmbti;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,12 +81,30 @@ public class ChatbotActivity extends AppCompatActivity {
         recyclerView.setAdapter(messageAdapter);
         
         // 버튼 클릭 이벤트 리스너 설정
-        messageAdapter.setOnQuestionButtonClickListener(new OnQuestionButtonClickListener() {
+        messageAdapter.setOnQuestionButtonClickListener(new MessageAdapter.OnQuestionButtonClickListener() {
             @Override
             public void onQuestionButtonClick(String question) {
                 // 질문 버튼이 클릭되었을 때 처리
+                Log.d(TAG, "버튼 클릭: " + question);
+                
+                // "나의 SMBTI에 대해 알려줘" 버튼 클릭 시 실제 SMBTI 값으로 치환
+                String actualQuestion = question;
+                if ("나의 SMBTI에 대해 알려줘".equals(question)) {
+                    if (currentUserSmbti != null && !currentUserSmbti.isEmpty()) {
+                        actualQuestion = currentUserSmbti + "에 대해 알려줘";
+                        Log.d(TAG, "SMBTI 질문 치환: " + question + " -> " + actualQuestion);
+                    } else {
+                        Log.w(TAG, "사용자 SMBTI 정보가 없음");
+                        Toast.makeText(ChatbotActivity.this, "SMBTI 정보가 없습니다. 먼저 SMBTI 테스트를 완료해주세요.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+                
+                // 화면에는 원래 질문을 표시
                 messageEditText.setText(question);
-                sendMessageToChatbot();
+                
+                // 서버에는 치환된 질문을 전송
+                sendCustomMessageToChatbot(question, actualQuestion);
             }
         });
         
@@ -94,7 +114,7 @@ public class ChatbotActivity extends AppCompatActivity {
         // 바텀 네비게이션 설정
         setupBottomNavigation();
         
-        // 시작 메시지 추가
+        // 시작 메시지 추가 - 어댑터 설정 후에 호출
         addSystemMessage("안녕하세요! 무엇을 도와드릴까요?");
     }
     
@@ -122,8 +142,9 @@ public class ChatbotActivity extends AppCompatActivity {
         SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
         currentUserId = sharedPreferences.getString(KEY_USER_ID, "user_" + System.currentTimeMillis());
         currentUserName = sharedPreferences.getString(KEY_NAME, "사용자");
+        currentUserSmbti = sharedPreferences.getString(KEY_MBTI, "");
         
-        Log.d(TAG, "사용자 정보 로드: id=" + currentUserId + ", name=" + currentUserName);
+        Log.d(TAG, "사용자 정보 로드: id=" + currentUserId + ", name=" + currentUserName + ", mbti=" + currentUserSmbti);
     }
     
     private void sendMessageToChatbot() {
@@ -133,17 +154,27 @@ public class ChatbotActivity extends AppCompatActivity {
             return;
         }
         
-        // 사용자 메시지 추가
+        sendCustomMessageToChatbot(messageContent, messageContent);
+    }
+    
+    // 화면 표시용과 서버 전송용 메시지를 분리하여 처리하는 메서드
+    private void sendCustomMessageToChatbot(String displayMessage, String serverMessage) {
+        Log.d(TAG, "사용자 메시지 전송 - 표시용: " + displayMessage + ", 서버용: " + serverMessage);
+        
+        // 사용자 메시지 추가 (화면에는 displayMessage 표시)
         Message userMessage = new Message();
         userMessage.setSenderId(currentUserId);
-        userMessage.setMessage(messageContent);
+        userMessage.setMessage(displayMessage); // 화면에 표시될 메시지
         userMessage.setSenderName(currentUserName);
         userMessage.setTimestamp(new Date().getTime());
 
-
-        messageList.add(userMessage);
-        messageAdapter.notifyItemInserted(messageList.size() - 1);
-        recyclerView.scrollToPosition(messageList.size() - 1);
+        // MessageAdapter의 addMessage 메서드 사용
+        if (messageAdapter != null) {
+            messageAdapter.addMessage(userMessage);
+            recyclerView.scrollToPosition(messageAdapter.getItemCount() - 1);
+        } else {
+            messageList.add(userMessage);
+        }
         
         // 입력창 비우기
         messageEditText.setText("");
@@ -151,8 +182,8 @@ public class ChatbotActivity extends AppCompatActivity {
         // 로딩 표시
         progressBar.setVisibility(View.VISIBLE);
         
-        // AI 응답 요청
-        requestAiResponse(messageContent);
+        // AI 응답 요청 (서버에는 serverMessage 전송)
+        requestAiResponse(serverMessage);
     }
     
     private void requestAiResponse(String question) {
@@ -232,9 +263,13 @@ public class ChatbotActivity extends AppCompatActivity {
         botMessage.setSenderName("챗봇");
         botMessage.setTimestamp(new Date().getTime());
         
-        messageList.add(botMessage);
-        messageAdapter.notifyItemInserted(messageList.size() - 1);
-        recyclerView.scrollToPosition(messageList.size() - 1);
+        // MessageAdapter의 addMessage 메서드 사용
+        if (messageAdapter != null) {
+            messageAdapter.addMessage(botMessage);
+            recyclerView.scrollToPosition(messageAdapter.getItemCount() - 1);
+        } else {
+            messageList.add(botMessage);
+        }
     }
     
     private void addSystemMessage(String content) {
@@ -244,9 +279,23 @@ public class ChatbotActivity extends AppCompatActivity {
         systemMessage.setSenderName("챗봇");
         systemMessage.setTimestamp(new Date().getTime());
 
-        messageList.add(systemMessage);
-        messageAdapter.notifyItemInserted(messageList.size() - 1);
-        recyclerView.scrollToPosition(messageList.size() - 1);
+        Log.d(TAG, "=== 시스템 메시지 생성 ===");
+        Log.d(TAG, "senderId: " + systemMessage.getSenderId());
+        Log.d(TAG, "message: " + systemMessage.getMessage());
+        Log.d(TAG, "senderName: " + systemMessage.getSenderName());
+        Log.d(TAG, "timestamp: " + systemMessage.getTimestamp());
+
+        // MessageAdapter의 addMessage 메서드 사용
+        if (messageAdapter != null) {
+            Log.d(TAG, "MessageAdapter를 통해 시스템 메시지 추가");
+            messageAdapter.addMessage(systemMessage);
+            recyclerView.scrollToPosition(messageAdapter.getItemCount() - 1);
+        } else {
+            Log.w(TAG, "MessageAdapter가 null이므로 직접 추가");
+            messageList.add(systemMessage);
+        }
+        
+        Log.d(TAG, "시스템 메시지 추가 완료");
     }
     
     private void showError(String message) {
