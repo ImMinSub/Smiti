@@ -38,6 +38,7 @@ public class MessagePaginationManager {
     private Context context;
     private String groupId;
     private String currentUserEmail;
+    private String currentUserName; // 현재 사용자 이름 추가
     private RecyclerView recyclerView;
     private MessageAdapter messageAdapter;
     private List<Message> messageList;
@@ -65,12 +66,13 @@ public class MessagePaginationManager {
     
     private PaginationCallback callback;
     
-    public MessagePaginationManager(Context context, String groupId, String currentUserEmail,
+    public MessagePaginationManager(Context context, String groupId, String currentUserEmail, String currentUserName,
                                   RecyclerView recyclerView, MessageAdapter messageAdapter,
                                   List<Message> messageList) {
         this.context = context;
         this.groupId = groupId;
         this.currentUserEmail = currentUserEmail;
+        this.currentUserName = currentUserName;
         this.recyclerView = recyclerView;
         this.messageAdapter = messageAdapter;
         this.messageList = messageList;
@@ -111,18 +113,16 @@ public class MessagePaginationManager {
                     // 추가 조건: 최소 메시지 수가 있어야 함 (무한 루프 방지)
                     // 연속 빈 로드가 3회 이상이면 중단
                     if (firstVisibleItem <= PRELOAD_THRESHOLD && 
-                        !isLoading && 
                         hasMoreMessages && 
-                        totalItemCount > 0 &&
-                        dy < 0 && // 위로 스크롤할 때만
+                        !isLoading && 
                         consecutiveEmptyLoads < 3) { // 연속 빈 로드 제한
                         
-                        Log.d(TAG, "페이지네이션 트리거: firstVisible=" + firstVisibleItem + 
-                                  ", totalItems=" + totalItemCount + 
-                                  ", hasMore=" + hasMoreMessages +
-                                  ", consecutiveEmpty=" + consecutiveEmptyLoads);
+                        // 스크롤 시 과도한 로그 출력 방지 - 디버깅 필요시에만 활성화
+                        // Log.d(TAG, "페이지네이션 트리거: firstVisible=" + firstVisibleItem + 
+                        //           ", totalItems=" + totalItemCount + 
+                        //           ", hasMore=" + hasMoreMessages +
+                        //           ", consecutiveEmpty=" + consecutiveEmptyLoads);
                         
-                        // 이전 로드에서 메시지가 없었다면 카운터 증가
                         loadPreviousMessages();
                     }
                 }
@@ -130,11 +130,10 @@ public class MessagePaginationManager {
             
             // 로드 결과에 따라 연속 빈 로드 카운터 업데이트
             public void onLoadResult(boolean hasNewMessages) {
-                if (hasNewMessages) {
-                    consecutiveEmptyLoads = 0; // 새 메시지가 있으면 카운터 리셋
-                } else {
+                if (!hasNewMessages) {
                     consecutiveEmptyLoads++; // 새 메시지가 없으면 카운터 증가
                     if (consecutiveEmptyLoads >= 3) {
+                        // 연속 빈 로드 제한 시에만 로그 출력
                         Log.d(TAG, "연속 빈 로드 3회 - 페이지네이션 중단");
                         hasMoreMessages = false;
                     }
@@ -326,15 +325,54 @@ public class MessagePaginationManager {
     private List<Message> parseMessagesFromResponse(String responseData) throws JSONException {
         List<Message> messages = new ArrayList<>();
         
-        // 서버 응답이 직접 JSONArray인 경우
-        JSONArray messagesArray = new JSONArray(responseData);
+        // null 또는 빈 응답 처리
+        if (responseData == null || responseData.trim().isEmpty()) {
+            Log.w(TAG, "서버 응답이 null이거나 비어있음");
+            return messages; // 빈 리스트 반환
+        }
         
-        for (int i = 0; i < messagesArray.length(); i++) {
-            JSONObject messageObject = messagesArray.getJSONObject(i);
-            Message message = parseMessageFromJson(messageObject);
-            if (message != null) {
-                messages.add(message);
+        try {
+            // 서버 응답이 직접 JSONArray인 경우
+            JSONArray messagesArray;
+            
+            // 응답이 배열인지 객체인지 확인
+            String trimmedData = responseData.trim();
+            if (trimmedData.startsWith("[")) {
+                // 직접 JSONArray 형태
+                messagesArray = new JSONArray(responseData);
+            } else if (trimmedData.startsWith("{")) {
+                // JSONObject 형태 - messages 필드를 찾아보기
+                JSONObject jsonObject = new JSONObject(responseData);
+                
+                if (jsonObject.has("messages")) {
+                    messagesArray = jsonObject.getJSONArray("messages");
+                } else if (jsonObject.has("data")) {
+                    JSONObject dataObject = jsonObject.getJSONObject("data");
+                    if (dataObject.has("messages")) {
+                        messagesArray = dataObject.getJSONArray("messages");
+                    } else {
+                        Log.w(TAG, "응답에서 메시지 배열을 찾을 수 없음: " + responseData);
+                        return messages; // 빈 리스트 반환
+                    }
+                } else {
+                    Log.w(TAG, "응답에서 메시지 배열을 찾을 수 없음: " + responseData);
+                    return messages; // 빈 리스트 반환
+                }
+            } else {
+                throw new JSONException("Invalid JSON format: " + responseData);
             }
+            
+            for (int i = 0; i < messagesArray.length(); i++) {
+                JSONObject messageObject = messagesArray.getJSONObject(i);
+                Message message = parseMessageFromJson(messageObject);
+                if (message != null) {
+                    messages.add(message);
+                }
+            }
+            
+        } catch (JSONException e) {
+            Log.e(TAG, "JSON 파싱 오류: " + responseData, e);
+            throw e; // 상위 메서드에서 처리하도록 다시 던짐
         }
         
         return messages;
@@ -374,9 +412,76 @@ public class MessagePaginationManager {
                 timestamp = System.currentTimeMillis();
             }
             
-            // 파일 정보 처리
-            String fileUrl = messageObject.optString("file_url", "");
-            String fileType = messageObject.optString("file_type", "");
+            // 파일 정보 처리 - 서버 데이터 구조에 맞게 강화
+            String fileUrl = "";
+            String fileType = "";
+            String messageType = messageObject.optString("type", "text");
+            
+            // 1. 직접적인 파일 필드 확인
+            fileUrl = messageObject.optString("file_url", "");
+            if (fileUrl.isEmpty()) {
+                fileUrl = messageObject.optString("fileUrl", "");
+            }
+            if (fileUrl.isEmpty()) {
+                fileUrl = messageObject.optString("attachment_url", "");
+            }
+            
+            fileType = messageObject.optString("file_type", "");
+            if (fileType.isEmpty()) {
+                fileType = messageObject.optString("fileType", "");
+            }
+            if (fileType.isEmpty()) {
+                fileType = messageObject.optString("attachment_type", "");
+            }
+            
+            // 2. 중첩된 파일 정보 확인
+            if (fileUrl.isEmpty() && messageObject.has("file")) {
+                JSONObject fileObject = messageObject.optJSONObject("file");
+                if (fileObject != null) {
+                    fileUrl = fileObject.optString("url", "");
+                    if (fileUrl.isEmpty()) {
+                        fileUrl = fileObject.optString("file_url", "");
+                    }
+                    fileType = fileObject.optString("type", "");
+                    if (fileType.isEmpty()) {
+                        fileType = fileObject.optString("file_type", "");
+                    }
+                }
+            }
+            
+            // 3. attachments 배열 확인
+            if (fileUrl.isEmpty() && messageObject.has("attachments")) {
+                JSONArray attachments = messageObject.optJSONArray("attachments");
+                if (attachments != null && attachments.length() > 0) {
+                    JSONObject firstAttachment = attachments.optJSONObject(0);
+                    if (firstAttachment != null) {
+                        fileUrl = firstAttachment.optString("url", "");
+                        if (fileUrl.isEmpty()) {
+                            fileUrl = firstAttachment.optString("file_url", "");
+                        }
+                        fileType = firstAttachment.optString("type", "");
+                        if (fileType.isEmpty()) {
+                            fileType = firstAttachment.optString("file_type", "");
+                        }
+                    }
+                }
+            }
+            
+            // 파일 메시지 처리 - 실제 서버 구조에 맞게 수정
+            boolean isFileMessage = "file".equals(messageType) && !fileUrl.isEmpty();
+            
+            if (isFileMessage) {
+                // 파일 타입이 명시되지 않은 경우 URL에서 추론
+                if (fileType.isEmpty() && !fileUrl.isEmpty()) {
+                    fileType = inferFileTypeFromUrl(fileUrl);
+                }
+                
+                Log.d(TAG, "파일 메시지 파싱 성공:");
+                Log.d(TAG, "  - fileUrl: " + fileUrl);
+                Log.d(TAG, "  - fileType: " + fileType);
+                Log.d(TAG, "  - messageType: " + messageType);
+                Log.d(TAG, "  - content: " + content);
+            }
             
             // 현재 사용자 메시지인지 정확히 판단
             boolean isCurrentUser = isCurrentUserMessage(senderId, senderName);
@@ -388,16 +493,42 @@ public class MessagePaginationManager {
             }
             
             Message message = new Message(senderId, senderName, content, timestamp);
+            
+            // 파일 정보가 있으면 반드시 설정
             if (!fileUrl.isEmpty()) {
                 message.setFileUrl(fileUrl);
-                message.setFileType(fileType);
+                message.setFileType(fileType.isEmpty() ? "file" : fileType);
+                
+                // 파일 메시지임을 명시하기 위해 messageType도 설정 (Message 클래스에 해당 메서드가 있는 경우)
+                try {
+                    if (message.getClass().getMethod("setMessageType", String.class) != null) {
+                        message.setMessageType("file");
+                    }
+                } catch (NoSuchMethodException e) {
+                    // setMessageType 메서드가 없는 경우 무시
+                }
+                
+                Log.d(TAG, "페이지네이션: 파일 메시지 생성 완료");
+                Log.d(TAG, "  - URL: " + fileUrl);
+                Log.d(TAG, "  - Type: " + fileType);
+                Log.d(TAG, "  - Content: " + content);
+            } else {
+                // 텍스트 메시지의 경우
+                try {
+                    if (message.getClass().getMethod("setMessageType", String.class) != null) {
+                        message.setMessageType("text");
+                    }
+                } catch (NoSuchMethodException e) {
+                    // setMessageType 메서드가 없는 경우 무시
+                }
             }
             
-            Log.d(TAG, "메시지 파싱 완료: senderId=" + senderId + 
-                      ", senderName=" + senderName + 
-                      ", isCurrentUser=" + isCurrentUser +
-                      ", timestamp=" + timestamp +
-                      ", 시간=" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(timestamp)));
+            // 메시지 파싱 완료 로그를 간소화 - 디버깅 필요시에만 활성화
+            // Log.d(TAG, "메시지 파싱 완료: senderId=" + senderId + 
+            //           ", senderName=" + senderName + 
+            //           ", isCurrentUser=" + isCurrentUser +
+            //           ", timestamp=" + timestamp +
+            //           ", 시간=" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(timestamp)));
             
             return message;
         } catch (Exception e) {
@@ -409,28 +540,18 @@ public class MessagePaginationManager {
     // 현재 사용자 메시지인지 정확히 판단하는 메서드
     private boolean isCurrentUserMessage(String senderId, String senderName) {
         if (currentUserEmail == null || currentUserEmail.isEmpty()) {
-            System.out.println("MessagePaginationManager: 현재 사용자 이메일이 설정되지 않음");
             return false;
         }
         
-        // 디버깅을 위한 상세 로그
-        System.out.println("=== MessagePaginationManager 메시지 소유권 판단 ===");
-        System.out.println("현재 사용자 이메일: [" + currentUserEmail + "]");
-        System.out.println("메시지 발신자 ID: [" + senderId + "]");
-        System.out.println("메시지 발신자 이름: [" + senderName + "]");
-        
         // 1. 이메일 정확 매칭 (대소문자 무시)
         if (senderId != null && currentUserEmail.equalsIgnoreCase(senderId.trim())) {
-            System.out.println("✓ 이메일 정확 매칭으로 현재 사용자 메시지 확인됨");
             return true;
         }
         
         // 2. 이메일 앞부분 매칭 (@ 앞부분)
         if (senderId != null && currentUserEmail.contains("@")) {
             String emailPrefix = currentUserEmail.split("@")[0];
-            System.out.println("이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderId.trim() + "]");
             if (emailPrefix.equalsIgnoreCase(senderId.trim())) {
-                System.out.println("✓ 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
                 return true;
             }
         }
@@ -438,27 +559,38 @@ public class MessagePaginationManager {
         // 3. 발신자명으로 판단
         if (senderName != null) {
             String normalizedName = senderName.trim().toLowerCase();
-            System.out.println("발신자명 정규화: [" + normalizedName + "]");
             
             // "나" 또는 "me" 키워드 확인
             if (normalizedName.equals("나") || normalizedName.equals("me") || normalizedName.equals("myself")) {
-                System.out.println("✓ 발신자명 키워드로 현재 사용자 메시지 확인됨");
                 return true;
             }
             
             // 현재 사용자 이메일의 앞부분과 비교
             if (currentUserEmail.contains("@")) {
                 String emailPrefix = currentUserEmail.split("@")[0];
-                System.out.println("발신자명과 이메일 앞부분 비교: [" + emailPrefix + "] vs [" + senderName.trim() + "]");
                 if (emailPrefix.equalsIgnoreCase(senderName.trim())) {
-                    System.out.println("✓ 발신자명과 이메일 앞부분 매칭으로 현재 사용자 메시지 확인됨");
                     return true;
                 }
             }
         }
         
-        System.out.println("✗ 현재 사용자 메시지가 아님으로 판단됨");
-        System.out.println("============================================");
+        // 4. 추가 매칭 로직 (더 관대한 방식)
+        if (senderId != null && currentUserEmail != null) {
+            String cleanSenderId = senderId.replaceAll("\\s+", "").toLowerCase();
+            String cleanCurrentEmail = currentUserEmail.replaceAll("\\s+", "").toLowerCase();
+            
+            if (cleanCurrentEmail.contains(cleanSenderId) || cleanSenderId.contains(cleanCurrentEmail)) {
+                return true;
+            }
+        }
+        
+        // 5. 사용자 이름과 이메일 교차 매칭
+        if (currentUserName != null && senderId != null) {
+            if (currentUserName.trim().equalsIgnoreCase(senderId.trim())) {
+                return true;
+            }
+        }
+        
         return false;
     }
     
@@ -613,7 +745,7 @@ public class MessagePaginationManager {
         boolean isMsg2Mine = isCurrentUserMessage(msg2.getSenderId(), msg2.getSenderName());
         
         if (isMsg1Mine && isMsg2Mine) {
-            System.out.println("MessagePaginationManager: 내가 보낸 메시지 중복 감지: 시간차=" + timeDiff + "ms");
+            // 유사 메시지 중복 감지 로그 제거 - 스크롤 시 과도한 출력 방지
             return true;
         }
         
@@ -801,5 +933,42 @@ public class MessagePaginationManager {
     
     public int getLoadedMessageCount() {
         return loadedMessageIds.size();
+    }
+    
+    // 파일 URL에서 파일 타입 추론 메서드
+    private String inferFileTypeFromUrl(String fileUrl) {
+        if (fileUrl == null || fileUrl.isEmpty()) {
+            return "";
+        }
+        
+        String lowerUrl = fileUrl.toLowerCase();
+        
+        // 이미지 파일 확장자 확인
+        if (lowerUrl.matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$")) {
+            return "image";
+        }
+        // PDF 파일 확장자 확인
+        else if (lowerUrl.endsWith(".pdf")) {
+            return "pdf";
+        }
+        // 문서 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(doc|docx|ppt|pptx|xls|xlsx|txt)$")) {
+            return "document";
+        }
+        // 비디오 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(mp4|avi|mov|wmv|flv|mkv)$")) {
+            return "video";
+        }
+        // 오디오 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(mp3|wav|ogg|aac|flac)$")) {
+            return "audio";
+        }
+        // 압축 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(zip|rar|7z|tar|gz)$")) {
+            return "archive";
+        }
+        
+        // 기본값: 일반 파일
+        return "file";
     }
 } 
