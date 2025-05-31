@@ -28,7 +28,6 @@ public class Message {
         } catch (NumberFormatException e) {
             this.timestamp = System.currentTimeMillis();
         }
-        Log.d(TAG, "메시지 생성: senderId=" + senderId + ", String 타임스탬프=" + timestamp);
     }
     
     // 수정된 텍스트 메시지용 생성자 (타임스탬프를 long으로 받음)
@@ -37,7 +36,6 @@ public class Message {
         this.senderName = senderName;
         this.message = cleanMessage(message, senderName);
         this.timestamp = timestamp;
-        Log.d(TAG, "메시지 생성: senderId=" + senderId + ", long 타임스탬프=" + timestamp);
     }
     
     // 파일 첨부 메시지용 생성자
@@ -102,7 +100,6 @@ public class Message {
     
     public void setSenderId(String senderId) {
         this.senderId = senderId;
-        Log.d(TAG, "발신자 ID 설정: " + senderId);
     }
     
     public String getSenderName() {
