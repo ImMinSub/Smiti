@@ -161,18 +161,53 @@ public class MessageDatabase extends SQLiteOpenHelper {
     }
     
     /**
-     * 중복 메시지인지 확인합니다.
+     * 중복 메시지인지 확인합니다. - 완화된 조건
      */
     private boolean isDuplicateMessage(String groupId, Message message) {
         SQLiteDatabase db = this.getReadableDatabase();
         
-        // 같은 그룹, 발신자, 메시지 내용으로 최근 5초 내 메시지가 있는지 확인
-        long timeThreshold = message.getTimestamp() - 5000; // 5초 전
+        // 파일 메시지의 경우 더 엄격한 기준으로 체크
+        if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
+            // 같은 파일 URL을 가진 메시지가 이미 있는지 확인
+            String selection = COLUMN_GROUP_ID + " = ? AND " +
+                              COLUMN_SENDER_ID + " = ? AND " +
+                              COLUMN_FILE_URL + " = ?";
+            
+            String[] selectionArgs = {
+                groupId,
+                message.getSenderId(),
+                message.getFileUrl()
+            };
+            
+            Cursor cursor = db.query(
+                TABLE_MESSAGES,
+                new String[]{COLUMN_ID},
+                selection,
+                selectionArgs,
+                null,
+                null,
+                null,
+                "1"
+            );
+            
+            boolean isDuplicate = cursor.getCount() > 0;
+            cursor.close();
+            
+            if (isDuplicate) {
+                Log.d(TAG, "중복 파일 메시지 감지: " + message.getFileUrl());
+            }
+            
+            return isDuplicate;
+        }
+        
+        // 텍스트 메시지의 경우 시간 기준을 더 짧게 (3초)
+        long timeThreshold = message.getTimestamp() - 3000; // 3초 전
         
         String selection = COLUMN_GROUP_ID + " = ? AND " +
                           COLUMN_SENDER_ID + " = ? AND " +
                           COLUMN_MESSAGE + " = ? AND " +
-                          COLUMN_TIMESTAMP + " > ?";
+                          COLUMN_TIMESTAMP + " > ? AND " +
+                          COLUMN_FILE_URL + " IS NULL"; // 파일이 없는 텍스트 메시지만
         
         String[] selectionArgs = {
             groupId,
@@ -189,11 +224,15 @@ public class MessageDatabase extends SQLiteOpenHelper {
             null,
             null,
             null,
-            "1" // LIMIT 1
+            "1"
         );
         
         boolean isDuplicate = cursor.getCount() > 0;
         cursor.close();
+        
+        if (isDuplicate) {
+            Log.d(TAG, "중복 텍스트 메시지 감지: " + message.getMessage());
+        }
         
         return isDuplicate;
     }
