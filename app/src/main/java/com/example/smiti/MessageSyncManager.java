@@ -158,17 +158,104 @@ public class MessageSyncManager {
             String timestampStr = messageObject.optString("timestamp", "");
             long timestamp = parseTimestampToMillis(timestampStr);
             
-            String fileUrl = messageObject.optString("file_url", "");
-            String fileType = messageObject.optString("file_type", "");
+            // 파일 정보 처리 - 여러 필드명과 구조 확인
+            String fileUrl = "";
+            String fileType = "";
+            String messageType = messageObject.optString("type", "text");
+            
+            // 1. 직접적인 파일 필드 확인
+            fileUrl = messageObject.optString("file_url", "");
+            if (fileUrl.isEmpty()) {
+                fileUrl = messageObject.optString("fileUrl", "");
+            }
+            if (fileUrl.isEmpty()) {
+                fileUrl = messageObject.optString("attachment_url", "");
+            }
+            
+            fileType = messageObject.optString("file_type", "");
+            if (fileType.isEmpty()) {
+                fileType = messageObject.optString("fileType", "");
+            }
+            if (fileType.isEmpty()) {
+                fileType = messageObject.optString("attachment_type", "");
+            }
+            
+            // 2. 중첩된 파일 정보 확인 (서버 구조에 따라)
+            if (fileUrl.isEmpty() && messageObject.has("file")) {
+                JSONObject fileObject = messageObject.optJSONObject("file");
+                if (fileObject != null) {
+                    fileUrl = fileObject.optString("url", "");
+                    if (fileUrl.isEmpty()) {
+                        fileUrl = fileObject.optString("file_url", "");
+                    }
+                    fileType = fileObject.optString("type", "");
+                    if (fileType.isEmpty()) {
+                        fileType = fileObject.optString("file_type", "");
+                    }
+                }
+            }
+            
+            // 3. attachments 배열 확인
+            if (fileUrl.isEmpty() && messageObject.has("attachments")) {
+                JSONArray attachments = messageObject.optJSONArray("attachments");
+                if (attachments != null && attachments.length() > 0) {
+                    JSONObject firstAttachment = attachments.optJSONObject(0);
+                    if (firstAttachment != null) {
+                        fileUrl = firstAttachment.optString("url", "");
+                        if (fileUrl.isEmpty()) {
+                            fileUrl = firstAttachment.optString("file_url", "");
+                        }
+                        fileType = firstAttachment.optString("type", "");
+                        if (fileType.isEmpty()) {
+                            fileType = firstAttachment.optString("file_type", "");
+                        }
+                    }
+                }
+            }
+            
+            // 파일 메시지 처리
+            if ("file".equals(messageType) || !fileUrl.isEmpty()) {
+                // 파일 타입이 명시되지 않은 경우 URL에서 추론
+                if (fileType.isEmpty() && !fileUrl.isEmpty()) {
+                    fileType = inferFileTypeFromUrl(fileUrl);
+                }
+                
+                // 메시지 타입을 file로 설정
+                messageType = "file";
+                
+                System.out.println("MessageSyncManager 파일 메시지 파싱 성공:");
+                System.out.println("  - fileUrl: " + fileUrl);
+                System.out.println("  - fileType: " + fileType);
+                System.out.println("  - messageType: " + messageType);
+                System.out.println("  - content: " + content);
+            }
             
             Message message = new Message(senderId, senderName, content, timestamp);
+            
+            // 파일 정보가 있으면 반드시 설정
             if (!fileUrl.isEmpty()) {
                 message.setFileUrl(fileUrl);
-                message.setFileType(fileType);
+                message.setFileType(fileType.isEmpty() ? "file" : fileType);
+                
+                // 안전한 메서드 호출
+                try {
+                    message.setMessageType("file");
+                    System.out.println("MessageSyncManager: 파일 메시지 설정 완료 - " + fileUrl + " (타입: " + fileType + ")");
+                } catch (Exception methodException) {
+                    System.out.println("MessageSyncManager: 메시지 타입 설정 실패, 기본 파일 처리 진행");
+                }
+            } else {
+                // 안전한 메서드 호출
+                try {
+                    message.setMessageType("text");
+                } catch (Exception methodException) {
+                    // 메서드가 없어도 계속 진행
+                }
             }
             
             return message;
         } catch (Exception e) {
+            System.out.println("MessageSyncManager 파일 메시지 파싱 오류: " + e.getMessage());
             return null;
         }
     }
@@ -289,5 +376,42 @@ public class MessageSyncManager {
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
         }
+    }
+    
+    // 파일 URL에서 파일 타입 추론 메서드
+    private String inferFileTypeFromUrl(String fileUrl) {
+        if (fileUrl == null || fileUrl.isEmpty()) {
+            return "";
+        }
+        
+        String lowerUrl = fileUrl.toLowerCase();
+        
+        // 이미지 파일 확장자 확인
+        if (lowerUrl.matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$")) {
+            return "image";
+        }
+        // PDF 파일 확장자 확인
+        else if (lowerUrl.endsWith(".pdf")) {
+            return "pdf";
+        }
+        // 문서 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(doc|docx|ppt|pptx|xls|xlsx|txt)$")) {
+            return "document";
+        }
+        // 비디오 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(mp4|avi|mov|wmv|flv|mkv)$")) {
+            return "video";
+        }
+        // 오디오 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(mp3|wav|ogg|aac|flac)$")) {
+            return "audio";
+        }
+        // 압축 파일 확장자 확인
+        else if (lowerUrl.matches(".*\\.(zip|rar|7z|tar|gz)$")) {
+            return "archive";
+        }
+        
+        // 기본값: 일반 파일
+        return "file";
     }
 } 
