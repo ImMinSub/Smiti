@@ -162,41 +162,16 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
                     ApiResponse apiResponse = response.body();
                     
                     try {
-                        // 응답 본문에서 JSON으로 직접 파싱
-                        String responseJson = response.body().toString();
-                        
-                        // 응답에 available_times가 포함되어 있는지 확인
-                        if (responseJson.contains("available_times")) {
-                            try {
-                                // JSON에서 직접 available_times 필드 추출
-                                Object availableTimesData = null;
-                                
-                                if (apiResponse.getData() != null) {
-                                    // data 객체 내에 available_times가 있는 경우
-                                    Map<String, Object> data = (Map<String, Object>) apiResponse.getData();
-                                    if (data.containsKey("available_times")) {
-                                        availableTimesData = data.get("available_times");
-                                    }
-                                } else {
-                                    // 최상위에 available_times가 있는 경우 (리플렉션으로 접근)
-                                    try {
-                                        java.lang.reflect.Field field = apiResponse.getClass().getDeclaredField("available_times");
-                                        field.setAccessible(true);
-                                        availableTimesData = field.get(apiResponse);
-                                    } catch (Exception ignored) {
-                                        // 리플렉션 실패 시 무시
-                                    }
-                                }
-                                
-                                // available_times 데이터가 있으면 파싱
-                                if (availableTimesData instanceof Map) {
-                                    @SuppressWarnings("unchecked")
-                                    Map<String, List<String>> serverTimes = (Map<String, List<String>>) availableTimesData;
-                                    parseServerTimes(serverTimes);
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "시간 데이터 파싱 오류: " + e.getMessage());
-                            }
+                        // 응답 본문에서 JSON으로 직접 파싱은 필요 없음, Retrofit이 자동으로 객체로 변환
+                        // String responseJson = response.body().toString(); // 이 줄은 이제 필요 없습니다.
+
+                        // ApiResponse 객체에서 availableTimes 필드 직접 사용
+                        Map<String, List<String>> serverTimes = apiResponse.getAvailableTimes();
+
+                        if (serverTimes != null) {
+                            parseServerTimes(serverTimes);
+                        } else {
+                            Log.d(TAG, "available_times 필드가 응답에 없거나 null 입니다.");
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "응답 처리 오류: " + e.getMessage());
@@ -310,8 +285,6 @@ public class StudyTimeActivity extends AppCompatActivity implements TimeSlotAdap
             if (isValidTimeRange(startHour, startMinute, endHour, endMinute)) {
                 // 시간 추가
                 addTimeSlot(startTime, endTime);
-                // 자동 저장
-                saveAvailableTimes();
                 // 다이얼로그 닫기
                 dialog.dismiss();
             } else {
