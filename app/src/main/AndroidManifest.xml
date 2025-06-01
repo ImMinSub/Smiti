@@ -60,6 +60,10 @@
         <activity android:name=".SmbtiTestActivity"
             android:exported="false" />
 
+        <activity android:name=".SmbtiResultActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Smiti.NoActionBar" />
+
         <activity android:name=".ChatActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
