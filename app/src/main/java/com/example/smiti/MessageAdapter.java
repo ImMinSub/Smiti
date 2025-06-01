@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -585,9 +586,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         TextView messageText, timeText;
         ImageView fileImageView;
         CardView imageContainer, pdfContainer;
-        LinearLayout pdfFileContainer;
+        ViewGroup pdfFileContainer;
         TextView pdfFilename;
-        Button imageDownloadBtn, pdfDownloadBtn;
+        ImageButton imageDownloadBtn, pdfDownloadBtn;
 
         SentMessageHolder(View itemView) {
             super(itemView);
@@ -715,18 +716,20 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     // 받은 메시지 ViewHolder 클래스
     private class ReceivedMessageHolder extends RecyclerView.ViewHolder {
-        TextView nameText, messageText, timeText; // 이름, 메시지, 시간
+        TextView nameText, messageText, timeText, timeTextImage, timeTextPdf; // 이름, 메시지, 시간들
         ImageView profileImage, fileImageView; // 프로필 이미지, 파일 이미지
         CardView imageContainer, pdfContainer; // 이미지 컨테이너, PDF 컨테이너
-        LinearLayout pdfFileContainer; // PDF 파일 컨테이너
+        ViewGroup pdfFileContainer; // PDF 파일 컨테이너
         TextView pdfFilename; // PDF 파일 이름
-        Button imageDownloadBtn, pdfDownloadBtn; // 이미지 다운로드 버튼, PDF 다운로드 버튼
+        ImageButton imageDownloadBtn, pdfDownloadBtn; // 이미지 다운로드 버튼, PDF 다운로드 버튼
 
         ReceivedMessageHolder(View itemView) {
             super(itemView);
             nameText = itemView.findViewById(R.id.text_name);
             messageText = itemView.findViewById(R.id.text_message_body);
             timeText = itemView.findViewById(R.id.text_message_time);
+            timeTextImage = itemView.findViewById(R.id.text_message_time_image);
+            timeTextPdf = itemView.findViewById(R.id.text_message_time_pdf);
             profileImage = itemView.findViewById(R.id.image_profile);
             
             // 이미지 관련 뷰
@@ -744,6 +747,21 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void bind(Message message) {
             nameText.setText(message.getSenderName());
             
+            // 시간 포맷팅
+            String formattedTime = "";
+            long timeInMillis = message.getTimestamp(); // UTC 기준 밀리초
+            if (timeInMillis > 0) { // 유효한 타임스탬프인지 확인
+                // SimpleDateFormat에 한국 시간대(KST) 강제 설정
+                SimpleDateFormat sdf = new SimpleDateFormat("a h:mm", Locale.KOREA);
+                sdf.setTimeZone(KST); // 시간대 KST로 설정
+                formattedTime = sdf.format(new Date(timeInMillis)); // KST 기준으로 시간 포맷
+            }
+
+            // 모든 시간 텍스트 초기화
+            timeText.setVisibility(View.GONE);
+            if (timeTextImage != null) timeTextImage.setVisibility(View.GONE);
+            if (timeTextPdf != null) timeTextPdf.setVisibility(View.GONE);
+
             // 파일이 있는 경우 텍스트 숨기기, 파일만 표시
             if (message.hasFile() && message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
                 // 파일 메시지인 경우 텍스트 숨기기
@@ -752,16 +770,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 // 일반 텍스트 메시지
                 messageText.setVisibility(View.VISIBLE);
                 messageText.setText(message.getMessage());
-            }
-
-            long timeInMillis = message.getTimestamp(); // UTC 기준 밀리초
-            if (timeInMillis > 0) { // 유효한 타임스탬프인지 확인
-                // SimpleDateFormat에 한국 시간대(KST) 강제 설정
-                SimpleDateFormat sdf = new SimpleDateFormat("a h:mm", Locale.KOREA);
-                sdf.setTimeZone(KST); // 시간대 KST로 설정
-                timeText.setText(sdf.format(new Date(timeInMillis))); // KST 기준으로 시간 포맷
-            } else {
-                timeText.setText(""); // 타임스탬프 파싱 실패 시 시간 비우기
+                // 일반 메시지의 경우 기본 시간 텍스트 사용
+                timeText.setVisibility(View.VISIBLE);
+                timeText.setText(formattedTime);
             }
 
             // 프로필 이미지 설정 (기본 이미지 사용)
@@ -803,6 +814,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                                 downloadFile(fileUrl, filename, "image/*");
                             });
                         }
+                        
+                        // 이미지용 시간 텍스트 표시
+                        if (timeTextImage != null) {
+                            timeTextImage.setVisibility(View.VISIBLE);
+                            timeTextImage.setText(formattedTime);
+                        }
                     }
                     
                     if (pdfContainer != null) {
@@ -824,6 +841,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                                 downloadFile(fileUrl, filename.isEmpty() ? "document.pdf" : filename, "application/pdf");
                             });
                         }
+                        
+                        // PDF용 시간 텍스트 표시
+                        if (timeTextPdf != null) {
+                            timeTextPdf.setVisibility(View.VISIBLE);
+                            timeTextPdf.setText(formattedTime);
+                        }
                     }
                     
                     if (imageContainer != null) {
@@ -844,6 +867,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                                 String filename = extractFilenameFromUrl(fileUrl);
                                 downloadFile(fileUrl, filename.isEmpty() ? "file" : filename, "*/*");
                             });
+                        }
+                        
+                        // 기타 파일용 시간 텍스트 표시 (PDF 시간 텍스트 사용)
+                        if (timeTextPdf != null) {
+                            timeTextPdf.setVisibility(View.VISIBLE);
+                            timeTextPdf.setText(formattedTime);
                         }
                     }
                     
