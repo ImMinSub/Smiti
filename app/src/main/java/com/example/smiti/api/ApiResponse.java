@@ -10,6 +10,7 @@ import com.example.smiti.model.Group;
 // LoginResponse.java 파일이 com.example.smiti.network 패키지에 있다고 가정합니다.
 // 실제 위치에 맞게 수정해주세요.
 import com.example.smiti.network.LoginResponse;
+import com.example.smiti.model.Todo; // Todo 모델 임포트
 
 
 public class ApiResponse {
@@ -47,6 +48,9 @@ public class ApiResponse {
     @SerializedName("user")
     private LoginResponse user; // LoginResponse 타입으로 선언
 
+    @SerializedName("todos") // 할 일 목록 필드 추가
+    private List<Todo> todos;
+
     public String getStatus() {
         return status;
     }
@@ -79,6 +83,9 @@ public class ApiResponse {
         }
         if (posts != null) {
             return posts;
+        }
+        if (todos != null) { // todos 필드가 있다면 반환
+            return todos;
         }
         return data;
     }
@@ -128,7 +135,8 @@ public class ApiResponse {
                 post != null ||
                 postId != null ||
                 comments != null ||
-                newComment != null;
+                newComment != null ||
+                todos != null; // todos 필드도 성공 여부에 포함
     }
 
     public Map<String, List<String>> getAvailableTimes() {
@@ -137,6 +145,14 @@ public class ApiResponse {
 
     public void setAvailableTimes(Map<String, List<String>> availableTimes) {
         this.availableTimes = availableTimes;
+    }
+
+    public List<Todo> getTodos() { // todos 필드 getter 추가
+        return todos;
+    }
+
+    public void setTodos(List<Todo> todos) { // todos 필드 setter 추가
+        this.todos = todos;
     }
 
     @Override
@@ -150,8 +166,10 @@ public class ApiResponse {
                 ", groups=" + (groups != null ? groups.size() + " items" : "null") +
                 ", post=" + (post != null ? "not null" : "null") +
                 ", post_id=" + (postId != null ? postId : "null") +
+                ", availableTimes=" + (availableTimes != null ? "not null" : "null") +
                 ", comments=" + (comments != null ? comments.size() + " items" : "null") +
                 ", newComment=" + (newComment != null ? newComment.toString() : "null") +
+                ", todos=" + (todos != null ? todos.size() + " items" : "null") + // todos 정보 추가
                 '}';
     }
 }
