@@ -510,20 +510,12 @@ public class SmbtiTestActivity extends AppCompatActivity {
         });
     }
     
-    // AlertDialog로 SMBTI 결과를 표시하는 메소드
+    // SMBTI 결과 화면으로 이동하는 메소드
     private void showResultDialog(final String smbtiResult) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("당신의 SMBTI는?")
-               .setMessage(smbtiResult)
-               .setPositiveButton("닫기", new android.content.DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(android.content.DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                        finishWithResult(smbtiResult);
-                    }
-                })
-               .setCancelable(false)
-               .show();
+        Intent intent = new Intent(SmbtiTestActivity.this, SmbtiResultActivity.class);
+        intent.putExtra("smbti_result", smbtiResult);
+        startActivity(intent);
+        finishWithResult(smbtiResult);
     }
     
     // 에러가 발생해도 결과를 메인 화면으로 돌려주는 메소드
