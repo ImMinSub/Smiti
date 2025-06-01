@@ -24,6 +24,8 @@ import androidx.annotation.Nullable; // @Nullable 사용 시 추가
 import com.example.smiti.model.GroupListApiResponse;
 import com.example.smiti.model.JoinGroupRequest; // JoinGroupRequest 모델 import
 import com.example.smiti.model.Group;
+import com.example.smiti.model.Todo; // Todo 모델 임포트
+import com.example.smiti.model.TodoCompletionRequest; // TodoCompletionRequest 모델 임포트
 
 public interface ApiService {
     // 사용자 관련 API
@@ -228,4 +230,35 @@ public interface ApiService {
 
     @GET("comments/{postId}")
     Call<ApiResponse> getCommentsByPostId(@Path("postId") int postId);
+
+    // 할 일 관련 API
+    @POST("todos")
+    Call<Todo> addTodo(@Body Todo request);
+
+    @GET("todos/{user_email}")
+    Call<List<Todo>> getTodosByUserEmail(@Path("user_email") String userEmail);
+
+    @GET("todos/{user_email}")
+    Call<List<Todo>> getTodosByUserAndDate(
+            @Path("user_email") String userEmail,
+            @Query("due_date_filter") String dueDateFilter
+    );
+
+    @PUT("todos/{todo_id}/completion")
+    Call<Todo> updateTodoCompletion(
+            @Path("todo_id") int todoId,
+            @Body TodoCompletionRequest request
+    );
+
+    @PUT("todos/{todo_id}")
+    Call<Todo> updateTodo(
+            @Path("todo_id") int todoId,
+            @Body Todo request
+    );
+
+    @HTTP(method = "DELETE", path = "todos/{todo_id}", hasBody = true)
+    Call<ApiResponse> deleteTodo(
+            @Path("todo_id") int todoId,
+            @Query("user_email") String userEmail
+    );
 }
