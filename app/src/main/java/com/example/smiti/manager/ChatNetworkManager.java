@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
@@ -39,6 +40,7 @@ public class ChatNetworkManager {
     private static final long BASE_SYNC_INTERVAL = 60000; // 기본 60초 (30초에서 증가)
     private static final long MAX_SYNC_INTERVAL = 300000; // 최대 5분
     private static final long MIN_SYNC_INTERVAL = 30000; // 최소 30초
+    private static final String FIRST_TIME_PREF = "first_time_group_access";
     
     private final Context context;
     private final MessageRepository messageRepository;
@@ -56,6 +58,9 @@ public class ChatNetworkManager {
     private boolean isSyncInProgress = false;
     private int consecutiveEmptySync = 0;
     
+    // 첫 접속 관리
+    private boolean isFirstTimeAccess = false;
+    
     public interface NetworkCallback {
         void onNetworkConnected();
         void onNetworkDisconnected();
@@ -68,12 +73,15 @@ public class ChatNetworkManager {
     }
     
     private NetworkCallback networkCallback;
-    
-    public ChatNetworkManager(Context context, MessageRepository messageRepository, 
+      public ChatNetworkManager(Context context, MessageRepository messageRepository, 
                              String currentGroupId) {
         this.context = context;
         this.messageRepository = messageRepository;
         this.currentGroupId = currentGroupId;
+        
+        // 해당 그룹에 처음 접속하는지 확인
+        this.isFirstTimeAccess = checkIfFirstTimeAccess(currentGroupId);
+        Log.d(TAG, "그룹 " + currentGroupId + " 첫 접속 여부: " + isFirstTimeAccess);
     }
     
     public void setNetworkCallback(NetworkCallback callback) {
@@ -123,8 +131,7 @@ public class ChatNetworkManager {
         // 초기 네트워크 상태 확인
         wasOffline = !isNetworkConnected();
     }
-    
-    /**
+      /**
      * 네트워크 연결 상태 확인
      */
     public boolean isNetworkConnected() {
@@ -136,18 +143,63 @@ public class ChatNetworkManager {
         }
         return false;
     }
-      /**
-     * 지능형 메시지 동기화 설정
+    
+    /**
+     * 해당 그룹에 처음 접속하는지 확인
+     */
+    private boolean checkIfFirstTimeAccess(String groupId) {
+        SharedPreferences prefs = context.getSharedPreferences(FIRST_TIME_PREF, Context.MODE_PRIVATE);
+        return !prefs.getBoolean("visited_group_" + groupId, false);
+    }
+    
+    /**
+     * 그룹 첫 접속 상태를 기록
+     */
+    private void markGroupAsVisited(String groupId) {
+        SharedPreferences prefs = context.getSharedPreferences(FIRST_TIME_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean("visited_group_" + groupId, true);
+        editor.apply();
+        Log.d(TAG, "그룹 " + groupId + " 첫 접속 상태 기록 완료");
+    }
+    
+    /**
+     * 첫 접속 시에만 동기화 수행
+     */
+    public void performFirstTimeSync() {
+        if (isFirstTimeAccess) {
+            Log.d(TAG, "첫 접속 감지 - 전체 메시지 동기화 시작");
+            performFullMessageSync();
+            markGroupAsVisited(currentGroupId);
+            isFirstTimeAccess = false;
+        } else {
+            Log.d(TAG, "이미 방문한 그룹 - 첫 접속 동기화 건너뜀");
+        }
+    }    /**
+     * 지능형 메시지 동기화 설정 (조건부)
+     * - 첫 접속이 아닌 경우 정기 동기화 비활성화
      * - 적응형 동기화 간격
      * - 중복 동기화 방지
      * - 활동 기반 동기화
      */
     public void setupPeriodicSync() {
-        Log.d(TAG, "지능형 동기화 시스템 시작");
+        if (!isFirstTimeAccess) {
+            Log.d(TAG, "첫 접속이 아니므로 정기 동기화를 비활성화합니다");
+            return;
+        }
+        
+        Log.d(TAG, "첫 접속 - 지능형 동기화 시스템 시작");
         syncHandler = new Handler(Looper.getMainLooper());
         syncRunnable = new Runnable() {
             @Override
             public void run() {
+                // 첫 접속이 아니면 동기화 중지
+                if (!isFirstTimeAccess) {
+                    Log.d(TAG, "첫 접속 완료로 정기 동기화 중지");
+                    stopPeriodicSync();
+                    return;
+                }
+                
                 // 중복 동기화 방지
                 if (isSyncInProgress) {
                     Log.d(TAG, "동기화 진행 중이므로 건너뜀");
@@ -170,7 +222,7 @@ public class ChatNetworkManager {
                     return;
                 }
                 
-                Log.d(TAG, "지능형 동기화 실행 - 간격: " + (currentSyncInterval/1000) + "초");
+                Log.d(TAG, "첫 접속 지능형 동기화 실행 - 간격: " + (currentSyncInterval/1000) + "초");
                 smartSyncMessagesFromServer();
             }
         };
