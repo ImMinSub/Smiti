@@ -48,6 +48,7 @@ public class MessagePaginationManager {
     private boolean hasMoreMessages = true;
     private int currentPage = 0;
     private String oldestMessageTimestamp = null;
+    private boolean isInitialLoadCompleted = false; // 초기 로드 완료 여부 추적
     
     // 성능 최적화
     private ExecutorService executorService;
@@ -77,6 +78,20 @@ public class MessagePaginationManager {
         this.messageAdapter = messageAdapter;
         this.messageList = messageList;
         
+        // 필수 파라미터 검증
+        if (recyclerView == null) {
+            Log.e(TAG, "RecyclerView cannot be null");
+            throw new IllegalArgumentException("RecyclerView cannot be null");
+        }
+        if (messageAdapter == null) {
+            Log.e(TAG, "MessageAdapter cannot be null");
+            throw new IllegalArgumentException("MessageAdapter cannot be null");
+        }
+        if (messageList == null) {
+            Log.e(TAG, "MessageList cannot be null");
+            throw new IllegalArgumentException("MessageList cannot be null");
+        }
+        
         this.executorService = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.loadedMessageIds = new HashSet<>();
@@ -88,7 +103,12 @@ public class MessagePaginationManager {
                 .writeTimeout(60, TimeUnit.SECONDS)
                 .build();
         
-        setupScrollListener();
+        // RecyclerView가 null이 아닌 경우에만 스크롤 리스너 설정
+        try {
+            setupScrollListener();
+        } catch (Exception e) {
+            Log.e(TAG, "스크롤 리스너 설정 실패", e);
+        }
     }
     
     public void setPaginationCallback(PaginationCallback callback) {
@@ -97,6 +117,11 @@ public class MessagePaginationManager {
     
     // 스크롤 리스너 설정 (상단 스크롤 시 이전 메시지 로드) - 개선된 버전
     private void setupScrollListener() {
+        if (recyclerView == null) {
+            Log.e(TAG, "RecyclerView is null, cannot setup scroll listener");
+            return;
+        }
+        
         recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             private int consecutiveEmptyLoads = 0; // 연속 빈 로드 카운터
             
@@ -142,24 +167,33 @@ public class MessagePaginationManager {
         });
     }
     
-    // 초기 메시지 로드 (최신 메시지부터)
+    // 초기 메시지 로드 (최신 메시지부터) - 스레드 안전성 개선
     public void loadInitialMessages() {
-        if (isLoading) return;
-        
-        Log.d(TAG, "초기 메시지 로드 시작");
-        currentPage = 0;
-        oldestMessageTimestamp = null;
-        hasMoreMessages = true;
-        loadedMessageIds.clear();
+        synchronized (this) {
+            if (isLoading) return;
+            
+            Log.d(TAG, "초기 메시지 로드 시작");
+            currentPage = 0;
+            oldestMessageTimestamp = null;
+            hasMoreMessages = true;
+            isInitialLoadCompleted = false; // 초기 로드 상태 리셋
+            
+            if (loadedMessageIds != null) {
+                loadedMessageIds.clear();
+            }
+        }
         
         loadMessagesFromServer(true);
     }
     
-    // 이전 메시지 로드 (페이지네이션)
+    // 이전 메시지 로드 (페이지네이션) - 스레드 안전성 개선
     public void loadPreviousMessages() {
-        if (isLoading || !hasMoreMessages) return;
+        synchronized (this) {
+            if (isLoading || !hasMoreMessages) return;
+            
+            Log.d(TAG, "이전 메시지 로드 시작 - 페이지: " + (currentPage + 1));
+        }
         
-        Log.d(TAG, "이전 메시지 로드 시작 - 페이지: " + (currentPage + 1));
         loadMessagesFromServer(false);
     }
     
@@ -286,6 +320,12 @@ public class MessagePaginationManager {
                         currentPage++;
                         hasMoreMessages = hasMore;
                         isLoading = false;
+                        
+                        // 초기 로드 완료 추적
+                        if (isInitial && !isInitialLoadCompleted) {
+                            isInitialLoadCompleted = true;
+                            Log.d(TAG, "초기 로드 완료 - 최신 메시지 표시 보장");
+                        }
                         
                         if (callback != null) {
                             callback.onLoadingFinished();
@@ -674,39 +714,58 @@ public class MessagePaginationManager {
         return System.currentTimeMillis();
     }
     
-    // 중복 제거 및 정렬 (성능 최적화)
+    // 중복 제거 및 정렬 (성능 최적화 - 스레드 안전성 개선)
     private List<Message> removeDuplicatesAndSort(List<Message> newMessages) {
+        if (newMessages == null || newMessages.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
         List<Message> filteredMessages = new ArrayList<>();
         
-        for (Message message : newMessages) {
-            String messageId = generateMessageId(message);
+        // 전체 메서드를 synchronized로 감싸서 스레드 안전성 보장
+        synchronized (this) {
+            // messageList와 loadedMessageIds 복사본 생성 (동시 수정 방지)
+            List<Message> messageListCopy = new ArrayList<>(messageList);
+            Set<String> loadedMessageIdsCopy = new HashSet<>(loadedMessageIds);
             
-            // 1. 로드된 메시지 ID 체크
-            if (loadedMessageIds.contains(messageId)) {
-                Log.d(TAG, "이미 로드된 메시지 스킵: " + messageId);
-                continue;
-            }
-            
-            // 2. 현재 메시지 리스트와 정확한 중복 체크 강화
-            boolean isDuplicate = false;
-            for (Message existingMessage : messageList) {
-                if (isSameMessageExact(message, existingMessage)) {
-                    isDuplicate = true;
-                    Log.d(TAG, "기존 메시지와 중복: " + messageId);
-                    break;
+            for (Message message : newMessages) {
+                if (message == null) {
+                    continue;
                 }
                 
-                // 3. 유사 메시지 체크 추가 (내용과 시간이 비슷한 경우)
-                if (isSimilarMessage(message, existingMessage)) {
-                    isDuplicate = true;
-                    Log.d(TAG, "유사 메시지로 중복 감지: " + messageId);
-                    break;
+                String messageId = generateMessageId(message);
+                
+                // 1. 로드된 메시지 ID 체크
+                if (loadedMessageIdsCopy.contains(messageId)) {
+                    Log.d(TAG, "이미 로드된 메시지 스킵: " + messageId);
+                    continue;
                 }
-            }
-            
-            if (!isDuplicate) {
-                filteredMessages.add(message);
-                loadedMessageIds.add(messageId); // 로드된 메시지 ID 추가
+                
+                // 2. 현재 메시지 리스트와 정확한 중복 체크 강화
+                boolean isDuplicate = false;
+                for (Message existingMessage : messageListCopy) {
+                    if (existingMessage == null) {
+                        continue;
+                    }
+                    
+                    if (isSameMessageExact(message, existingMessage)) {
+                        isDuplicate = true;
+                        Log.d(TAG, "기존 메시지와 중복: " + messageId);
+                        break;
+                    }
+                    
+                    // 3. 유사 메시지 체크 추가 (내용과 시간이 비슷한 경우)
+                    if (isSimilarMessage(message, existingMessage)) {
+                        isDuplicate = true;
+                        Log.d(TAG, "유사 메시지로 중복 감지: " + messageId);
+                        break;
+                    }
+                }
+                
+                if (!isDuplicate) {
+                    filteredMessages.add(message);
+                    loadedMessageIds.add(messageId); // 원본 loadedMessageIds에 추가
+                }
             }
         }
         
@@ -828,68 +887,103 @@ public class MessagePaginationManager {
         return java.util.Objects.equals(fileUrl1, fileUrl2);
     }
     
-    // 메시지 리스트 업데이트
+    // 메시지 리스트 업데이트 (스레드 안전성 개선)
     private void updateMessageList(List<Message> newMessages, boolean isInitial) {
-        if (isInitial) {
-            // 초기 로드 시 전체 교체
-            messageList.clear();
-            messageList.addAll(newMessages);
-            messageAdapter.replaceAllMessages(newMessages);
-            
-            // 최신 메시지로 스크롤
-            if (!newMessages.isEmpty()) {
-                recyclerView.scrollToPosition(messageList.size() - 1);
-            }
-        } else {
-            // 페이지네이션 시 상단에 추가 - 중복 방지 강화
-            List<Message> uniqueNewMessages = new ArrayList<>();
-            
-            for (Message newMessage : newMessages) {
-                boolean isDuplicate = false;
+        if (newMessages == null) {
+            Log.w(TAG, "newMessages가 null입니다");
+            return;
+        }
+        
+        // 전체 메서드를 synchronized로 감싸서 스레드 안전성 보장
+        synchronized (this) {
+            if (isInitial) {
+                // 초기 로드 시 전체 교체
+                messageList.clear();
+                messageList.addAll(newMessages);
+                messageAdapter.replaceAllMessages(newMessages);
                 
-                // 기존 메시지와 중복 체크 (타임스탬프 + 발신자 + 내용)
-                for (Message existingMessage : messageList) {
-                    if (isSameMessage(newMessage, existingMessage)) {
-                        isDuplicate = true;
-                        Log.d(TAG, "중복 메시지 감지됨: " + newMessage.getMessage().substring(0, Math.min(20, newMessage.getMessage().length())));
-                        break;
-                    }
+                // 최신 메시지로 강제 스크롤 - 지연 처리 포함
+                if (!newMessages.isEmpty()) {
+                    // 즉시 스크롤
+                    recyclerView.scrollToPosition(messageList.size() - 1);
+                    
+                    // 레이아웃 완료 후 부드러운 스크롤로 재시도
+                    recyclerView.post(() -> {
+                        if (recyclerView != null && !messageList.isEmpty()) {
+                            recyclerView.smoothScrollToPosition(messageList.size() - 1);
+                        }
+                    });
+                    
+                    // 추가 지연 후 최종 스크롤 보장
+                    recyclerView.postDelayed(() -> {
+                        if (recyclerView != null && !messageList.isEmpty()) {
+                            recyclerView.smoothScrollToPosition(messageList.size() - 1);
+                        }
+                    }, 100);
+                    
+                    Log.d(TAG, "초기 로드 완료 - 최신 메시지로 스크롤 (총 " + messageList.size() + "개)");
                 }
+            } else {
+                // 페이지네이션 시 상단에 추가 - 중복 방지 강화
+                List<Message> uniqueNewMessages = new ArrayList<>();
                 
-                if (!isDuplicate) {
-                    uniqueNewMessages.add(newMessage);
-                }
-            }
-            
-            if (!uniqueNewMessages.isEmpty()) {
-                // 메시지 리스트에 추가 (시간순 정렬 유지)
-                for (int i = uniqueNewMessages.size() - 1; i >= 0; i--) {
-                    messageList.add(0, uniqueNewMessages.get(i));
-                }
+                // messageList 복사본 생성하여 동시 수정 방지
+                List<Message> messageListCopy = new ArrayList<>(messageList);
                 
-                // 어댑터에 일괄 추가
-                messageAdapter.addMessagesAtTop(uniqueNewMessages);
-                
-                // 스크롤 위치 유지 (새로 추가된 메시지 수만큼 오프셋)
-                LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
-                if (layoutManager != null) {
-                    int firstVisiblePosition = layoutManager.findFirstVisibleItemPosition();
-                    View firstVisibleView = layoutManager.findViewByPosition(firstVisiblePosition);
-                    int offset = 0;
-                    if (firstVisibleView != null) {
-                        offset = firstVisibleView.getTop();
+                for (Message newMessage : newMessages) {
+                    if (newMessage == null) {
+                        continue;
                     }
                     
-                    // 새로 추가된 메시지 수만큼 위치 조정
-                    layoutManager.scrollToPositionWithOffset(
-                        firstVisiblePosition + uniqueNewMessages.size(), offset);
+                    boolean isDuplicate = false;
+                    
+                    // 기존 메시지와 중복 체크 (타임스탬프 + 발신자 + 내용)
+                    for (Message existingMessage : messageListCopy) {
+                        if (existingMessage != null && isSameMessage(newMessage, existingMessage)) {
+                            isDuplicate = true;
+                            String preview = newMessage.getMessage() != null ? 
+                                newMessage.getMessage().substring(0, Math.min(20, newMessage.getMessage().length())) : "null";
+                            Log.d(TAG, "중복 메시지 감지됨: " + preview);
+                            break;
+                        }
+                    }
+                    
+                    if (!isDuplicate) {
+                        uniqueNewMessages.add(newMessage);
+                    }
                 }
                 
+                if (!uniqueNewMessages.isEmpty()) {
+                    // 메시지 리스트에 추가 (시간순 정렬 유지)
+                    for (int i = uniqueNewMessages.size() - 1; i >= 0; i--) {
+                        messageList.add(0, uniqueNewMessages.get(i));
+                    }
+                    
+                    // 어댑터에 일괄 추가
+                    messageAdapter.addMessagesAtTop(uniqueNewMessages);
+                    
+                    // 스크롤 위치 유지 (새로 추가된 메시지 수만큼 오프셋)
+                    LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+                    if (layoutManager != null) {
+                        int firstVisiblePosition = layoutManager.findFirstVisibleItemPosition();
+                        View firstVisibleView = layoutManager.findViewByPosition(firstVisiblePosition);
+                        int offset = 0;
+                        if (firstVisibleView != null) {
+                            offset = firstVisibleView.getTop();
+                        }
+                        
+                        // 새로 추가된 메시지 수만큼 위치 조정
+                        layoutManager.scrollToPositionWithOffset(
+                            firstVisiblePosition + uniqueNewMessages.size(), offset);
+                    }
+                    
+                    Log.d(TAG, "페이지네이션: " + uniqueNewMessages.size() + "개 고유 메시지 추가됨");
                 Log.d(TAG, "페이지네이션: " + uniqueNewMessages.size() + "개 고유 메시지 추가됨");
-            } else {
-                Log.d(TAG, "페이지네이션: 모든 메시지가 중복됨, 추가하지 않음");
-                // 중복 메시지만 있으면 더 이상 로드할 메시지가 없다고 판단
-                hasMoreMessages = false;
+                } else {
+                    Log.d(TAG, "페이지네이션: 모든 메시지가 중복됨, 추가하지 않음");
+                    // 중복 메시지만 있으면 더 이상 로드할 메시지가 없다고 판단
+                    hasMoreMessages = false;
+                }
             }
         }
     }
@@ -908,31 +1002,41 @@ public class MessagePaginationManager {
         return sameTimestamp && sameSender && sameContent;
     }
     
-    // 리소스 정리
+    // 리소스 정리 (스레드 안전성 개선)
     public void cleanup() {
-        if (executorService != null && !executorService.isShutdown()) {
-            executorService.shutdown();
-        }
-        if (loadedMessageIds != null) {
-            loadedMessageIds.clear();
+        synchronized (this) {
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+            }
+            if (loadedMessageIds != null) {
+                loadedMessageIds.clear();
+            }
         }
     }
     
-    // 상태 확인 메서드들
+    // 상태 확인 메서드들 (스레드 안전성 개선)
     public boolean isLoading() {
-        return isLoading;
+        synchronized (this) {
+            return isLoading;
+        }
     }
     
     public boolean hasMoreMessages() {
-        return hasMoreMessages;
+        synchronized (this) {
+            return hasMoreMessages;
+        }
     }
     
     public int getCurrentPage() {
-        return currentPage;
+        synchronized (this) {
+            return currentPage;
+        }
     }
     
     public int getLoadedMessageCount() {
-        return loadedMessageIds.size();
+        synchronized (this) {
+            return loadedMessageIds != null ? loadedMessageIds.size() : 0;
+        }
     }
     
     // 파일 URL에서 파일 타입 추론 메서드
