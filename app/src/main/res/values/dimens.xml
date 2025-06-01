@@ -18,4 +18,9 @@
     
     <!-- 최소 터치 영역 (Material Design 가이드라인) -->
     <dimen name="min_touch_target_size">48dp</dimen>
+    
+    <!-- SMBTI 결과 화면 태그 관련 -->
+    <dimen name="tag_padding_horizontal">12dp</dimen>
+    <dimen name="tag_padding_vertical">6dp</dimen>
+    <dimen name="tag_margin">8dp</dimen>
 </resources> 
