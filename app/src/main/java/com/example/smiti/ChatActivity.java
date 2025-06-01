@@ -4,6 +4,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -61,21 +62,18 @@ public class ChatActivity extends AppCompatActivity implements
     
     // 파일 선택 런처
     private final ActivityResultLauncher<String> getContent = registerForActivityResult(
-            new ActivityResultContracts.GetContent(), this::handleFileSelected);
-
-    @Override
+            new ActivityResultContracts.GetContent(), this::handleFileSelected);    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_chat);
-
+        setContentView(R.layout.activity_chat);        
         try {
             // 기본 초기화
             initializeBasicComponents();
             
-            // 매니저 초기화
+            // 매니저 초기화 (UI 설정 전에 먼저 실행)
             initializeManagers();
             
-            // UI 설정
+            // UI 설정 (매니저 초기화 후 실행)
             setupUI();
             
             // 데이터 로드
@@ -86,7 +84,12 @@ public class ChatActivity extends AppCompatActivity implements
             
         } catch (Exception e) {
             Log.e(TAG, "onCreate 오류", e);
-            uiManager.showToast("앱 초기화 중 오류가 발생했습니다");
+            // uiManager가 null일 수 있으므로 안전하게 Toast 표시
+            if (uiManager != null) {
+                uiManager.showToast("앱 초기화 중 오류가 발생했습니다");
+            } else {
+                Toast.makeText(this, "앱 초기화 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
+            }
         }
     }
     
@@ -129,16 +132,14 @@ public class ChatActivity extends AppCompatActivity implements
         
         // 파일 매니저
         fileManager = new ChatFileManager(this);
-        
-        // 네트워크 매니저
+          // 네트워크 매니저
         networkManager = new ChatNetworkManager(this, messageRepository, currentGroupId);
         networkManager.setNetworkCallback(this);
         
-        // 페이지네이션 매니저
-        initializePaginationManager();
+        // 페이지네이션 매니저는 UI 초기화 후에 설정
+        // initializePaginationManager();
     }
-    
-    /**
+      /**
      * UI 설정
      */
     private void setupUI() {
@@ -147,6 +148,9 @@ public class ChatActivity extends AppCompatActivity implements
         uiManager.setupMembersRecyclerView(memberList);
         uiManager.setupListeners(this);
         uiManager.setupBottomNavigation();
+        
+        // UI 초기화 완료 후 페이지네이션 매니저 초기화
+        initializePaginationManager();
     }
     
     /**
@@ -159,23 +163,29 @@ public class ChatActivity extends AppCompatActivity implements
         // 그룹 멤버 로드
         networkManager.loadGroupMembers();
     }
-    
-    /**
+      /**
      * 네트워크 설정
      */
     private void setupNetwork() {
         networkManager.setupNetworkReceiver();
-        networkManager.setupPeriodicSync();
+        // 처음 그룹 접속 시에만 동기화 수행
+        networkManager.performFirstTimeSync();
     }
-    
-    /**
+      /**
      * 페이지네이션 매니저 초기화
      */
     private void initializePaginationManager() {
         try {
+            // RecyclerView가 초기화되었는지 확인
+            RecyclerView recyclerView = uiManager.getRecyclerView();
+            if (recyclerView == null) {
+                Log.e(TAG, "RecyclerView가 초기화되지 않아 페이지네이션 매니저를 생성할 수 없습니다");
+                return;
+            }
+            
             paginationManager = new MessagePaginationManager(
                 this, currentGroupId, currentUserEmail, currentUserName,
-                uiManager.getRecyclerView(), messageAdapter, messageList
+                recyclerView, messageAdapter, messageList
             );
             
             paginationManager.setPaginationCallback(new MessagePaginationManager.PaginationCallback() {
@@ -593,24 +603,20 @@ public class ChatActivity extends AppCompatActivity implements
     
     // ===============================
     // 생명주기 메서드
-    // ===============================
-      @Override
+    // ===============================    @Override
     protected void onResume() {
         super.onResume();
         // 사용자 활동 알림
         networkManager.notifyUserActivity();
         
-        // 지능형 동기화 사용 - 필요시에만 동기화
-        if (networkManager.isNetworkConnected()) {
-            networkManager.smartSyncMessagesFromServer();
-        }
+        // 자동 동기화 제거 - 이제 처음 접속 시에만 동기화됨
+        // 필요시 수동으로 새로고침 버튼을 통해 동기화 가능
         
         if (webSocketService != null && !webSocketService.isConnected()) {
             webSocketService.connect(currentGroupId, currentUserEmail, this);
         }
     }
-    
-    @Override
+      @Override
     protected void onDestroy() {
         super.onDestroy();
         if (webSocketService != null) {
@@ -621,6 +627,9 @@ public class ChatActivity extends AppCompatActivity implements
         }
         if (networkManager != null) {
             networkManager.cleanup();
+        }
+        if (uiManager != null) {
+            uiManager.cleanup();
         }
     }
 } 
