@@ -1,6 +1,10 @@
 package com.example.smiti;
 
+// 현재 나와 잘 맞는 스터디 그룹 찾기 기능 미구현 상태
+
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -22,6 +26,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
     private Button btnFindStudyGroup;
     private Button btnRetakeTest;
     private ImageView btnBack;
+    private ImageView ivProfile;
     private LinearLayout layoutPersonalityTagsRow1;
     private LinearLayout layoutPersonalityTagsRow2;
 
@@ -41,6 +46,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
         initViews();
         setupSmbtiResult();
         setupClickListeners();
+        setupButtonStyles();
 
         // 뒤로가기 버튼 클릭 시 메인 화면으로 이동
         btnBack.setOnClickListener(new View.OnClickListener() {
@@ -67,6 +73,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
         btnFindStudyGroup = findViewById(R.id.btn_find_study_group);
         btnRetakeTest = findViewById(R.id.btn_retake_test);
         btnBack = findViewById(R.id.btn_back);
+        ivProfile = findViewById(R.id.iv_profile);
         layoutPersonalityTagsRow1 = findViewById(R.id.layout_personality_tags_row1);
         layoutPersonalityTagsRow2 = findViewById(R.id.layout_personality_tags_row2);
     }
@@ -85,8 +92,98 @@ public class SmbtiResultActivity extends AppCompatActivity {
         tvStudyMethod2.setText(data.studyMethod2);
         tvStudyMethod3.setText(data.studyMethod3);
 
+        // 색상 및 이미지 설정
+        setupSmbtiColors();
+        setupProfileImage();
+
         // 성격 특징 태그 설정
         setupPersonalityTags(data.personalityTags);
+    }
+
+    private void setupSmbtiColors() {
+        String resultColor = getSmbtiResultColor(smbtiResult);
+        
+        // SMBTI 결과 배경색 설정
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setColor(Color.parseColor(resultColor));
+        drawable.setCornerRadius(24f);
+        tvSmbtiType.setBackground(drawable);
+    }
+
+    private void setupProfileImage() {
+        int imageResId = getSmbtiImageResource(smbtiResult);
+        if (imageResId != 0) {
+            ivProfile.setImageResource(imageResId);
+        }
+    }
+
+    private void setupButtonStyles() {
+        // "나와 잘 맞는 스터디 그룹 찾기" 버튼 - 불투명
+        GradientDrawable findGroupDrawable = new GradientDrawable();
+        findGroupDrawable.setShape(GradientDrawable.RECTANGLE);
+        findGroupDrawable.setColor(Color.parseColor("#1F4059"));
+        findGroupDrawable.setCornerRadius(25f);
+        btnFindStudyGroup.setBackground(findGroupDrawable);
+
+        // "다시 테스트하기" 버튼 - 30% 투명
+        GradientDrawable retakeDrawable = new GradientDrawable();
+        retakeDrawable.setShape(GradientDrawable.RECTANGLE);
+        retakeDrawable.setColor(Color.parseColor("#4D1F4059")); // 30% alpha
+        retakeDrawable.setCornerRadius(25f);
+        btnRetakeTest.setBackground(retakeDrawable);
+    }
+
+    // 결과 색상 설정
+    private String getSmbtiResultColor(String smbtiType) {
+        switch (smbtiType) {
+            case "TIPD": return "#57ABF9";
+            case "TIPM": return "#7893A8";
+            case "TIFD": return "#7C8E72";
+            case "TIFM": return "#C19BCA";
+            case "TCPD": return "#7421A4";
+            case "TCPM": return "#61A9E0";
+            case "TCFD": return "#8E6458";
+            case "TCFM": return "#F3998A";
+            case "EIPD": return "#FAA125";
+            case "EIPM": return "#F4E150";
+            case "EIFD": return "#BCA596";
+            case "EIFM": return "#FFD4B9";
+            case "ECPD": return "#E34545";
+            case "ECPM": return "#42948E";
+            case "ECFD": return "#76D9C8";
+            case "ECFM": return "#DDBCED";
+            default: return "#8B5CF6"; // 기본 색상
+        }
+    }
+
+    // 태그 색상 설정
+    private String getSmbtiTagColor(String smbtiType) {
+        String baseColor = getSmbtiResultColor(smbtiType);
+        // 50% 투명도 적용 - 모든 케이스에서 "#"만 제거하고 "80" 추가
+        return "#80" + baseColor.substring(1);
+    }
+
+    private int getSmbtiImageResource(String smbtiType) {
+        switch (smbtiType) {
+            case "TIPD": return R.drawable.tipd;
+            case "TIPM": return R.drawable.tipm;
+            case "TIFD": return R.drawable.tifd;
+            case "TIFM": return R.drawable.tifm;
+            case "TCPD": return R.drawable.tcpd;
+            case "TCPM": return R.drawable.tcpm;
+            case "TCFD": return R.drawable.tcfd;
+            case "TCFM": return R.drawable.tcfm;
+            case "EIPD": return R.drawable.eipd;
+            case "EIPM": return R.drawable.eipm;
+            case "EIFD": return R.drawable.eifd;
+            case "EIFM": return R.drawable.eifm;
+            case "ECPD": return R.drawable.ecpd;
+            case "ECPM": return R.drawable.ecpm;
+            case "ECFD": return R.drawable.ecfd;
+            case "ECFM": return R.drawable.ecfm;
+            default: return R.drawable.ic_profile_placeholder;
+        }
     }
 
     private void setupPersonalityTags(String[] tags) {
@@ -96,9 +193,11 @@ public class SmbtiResultActivity extends AppCompatActivity {
         layoutPersonalityTagsRow1.removeAllViews();
         layoutPersonalityTagsRow2.removeAllViews();
 
+        String tagColor = getSmbtiTagColor(smbtiResult);
+
         // 태그 추가 (첫 번째 행에 3개, 두 번째 행에 3개)
         for (int i = 0; i < tags.length; i++) {
-            TextView tagView = createTagTextView(tags[i]);
+            TextView tagView = createTagTextView(tags[i], tagColor);
 
             if (i < 3) {
                 // 첫 번째 행
@@ -140,12 +239,19 @@ public class SmbtiResultActivity extends AppCompatActivity {
         }
     }
 
-    private TextView createTagTextView(String text) {
+    private TextView createTagTextView(String text, String backgroundColor) {
         TextView tagView = new TextView(this);
         tagView.setText(text);
         tagView.setTextSize(12);
-        tagView.setTextColor(getResources().getColor(R.color.purple));
-        tagView.setBackground(getResources().getDrawable(R.drawable.purple_rounded_tag));
+        tagView.setTextColor(getResources().getColor(android.R.color.white));
+        
+        // 동적으로 배경색 설정
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setColor(Color.parseColor(backgroundColor));
+        drawable.setCornerRadius(16f);
+        tagView.setBackground(drawable);
+        
         tagView.setPadding(
                 (int) getResources().getDimension(R.dimen.tag_padding_horizontal),
                 (int) getResources().getDimension(R.dimen.tag_padding_vertical),
@@ -179,7 +285,9 @@ public class SmbtiResultActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // TODO: 스터디 그룹 찾기 기능 구현
-                // 현재는 미구현 상태
+                /*
+                 * 현재 미구현 상태
+                 */
             }
         });
     }
@@ -301,7 +409,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
                         "주간 계획과 일일 체크리스트를 통해 루틴을 유지하며, 실습 중심의 반복 학습으로 개념을 다진다.",
                         "틀린 문제는 원인을 분석해 유형별로 정리하고, 퀴즈나 셀프 테스트를 통해 피드백 루틴을 지속한다.",
                         "정돈된 학습 환경을 유지하고, 디테일 체크리스트를 활용해 주제별 성취도를 점검한다.",
-                        new String[]{"몰입장인", "실전혼공러", "오답분석러", "루틴성애자", "디테일실행러"}
+                        new String[]{"몰입장인", "실전혼공러", "오답분석러", "루틴성애자", "디테일실행러","홀로학습형"}
                 );
 
             case "EIPM":
@@ -379,7 +487,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
                         "유연하게 역할을 분담해 실습하며 진행하고, 중간 점검은 디테일 중심으로 수행한다.",
                         "틀리거나 애매한 부분은 따로 정리해 재확인하고, 체크리스트를 활용해 결과물을 복습한다.",
                         "오탈자 수정과 문장 정리에 강하며, 실습 중 떠오른 포인트를 바로 기록하고 팀원과 피드백을 주고받는다.",
-                        new String[]{"협업실행러", "디테일마스터", "계획없는완벽주의자", "분위기조율러", "친절한피드백러", "실습수정러"}
+                        new String[]{"협업실행러", "디테일마스터", "무계획획완벽주의자", "분위기조율러", "친절한피드백러", "실습수정러"}
                 );
 
             case "ECFM":
@@ -392,7 +500,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
                         "실습을 통해 개념을 연결하고 구조를 도식화하며 흐름 중심으로 학습한다.",
                         "팀에서는 과도한 계획보다 느슨한 타임라인과 유연한 역할 조정을 통해 흐름을 조율한다.",
                         "시각적 정리와 자유로운 피드백 대화를 활용하고, 마감 전 체크리스트로 핵심을 점검한다.",
-                        new String[]{"유연조율자", "감각적실습러", "팀속브레인", "계획보다흐름", "개념연결러", "자연스러운학습리더"}
+                        new String[]{"유연조율자", "감각적실습러", "팀속브레인", "계획보다흐름", "개념연결러", "내추럴학습리더"}
                 );
 
             default:
