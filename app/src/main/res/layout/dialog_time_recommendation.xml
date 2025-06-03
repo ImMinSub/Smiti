@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- 제목 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="추천 시간"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 추천 시간 내용을 표시할 ScrollView -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="300dp">
+
+        <TextView
+            android:id="@+id/tv_recommendation_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"            android:text="AI가 분석한 추천 시간을 불러오는 중..."
+            android:textSize="16sp"
+            android:textColor="#333333"
+            android:lineSpacingExtra="4dp"
+            android:padding="16dp"
+            android:background="@drawable/rounded_white_background_dialog"
+            android:minHeight="100dp"
+            android:gravity="top" />
+    </ScrollView>
+
+    <!-- 확인 버튼 -->
+    <Button
+        android:id="@+id/btn_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="확인"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
+        android:background="@drawable/button_background"
+        android:layout_marginTop="16dp"
+        android:minHeight="48dp" />
+
+</LinearLayout>
