@@ -99,8 +99,15 @@ public class PostDetailActivity extends AppCompatActivity {
         SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
         userEmail = sharedPreferences.getString(KEY_USER_EMAIL, "");
         userName = sharedPreferences.getString(KEY_USER_NAME, "");
-        isAdmin = (sharedPreferences.getInt(KEY_USER_ADMIN_STATUS, 0) == 1);
-        Log.i(TAG, "Current User - Email: " + userEmail + ", Name: " + userName + ", IsAdmin: " + isAdmin);
+        int adminStatus = sharedPreferences.getInt(KEY_USER_ADMIN_STATUS, 0);
+        isAdmin = (adminStatus == 1);
+
+        Log.d(TAG, "=== 사용자 정보 로드 ===");
+        Log.d(TAG, "현재 사용자 이메일: " + userEmail);
+        Log.d(TAG, "현재 사용자 이름: " + userName);
+        Log.d(TAG, "저장된 관리자 상태 값: " + adminStatus);
+        Log.d(TAG, "계산된 관리자 여부: " + isAdmin);
+        Log.d(TAG, "=== 사용자 정보 로드 완료 ===");
 
         initViews();
         setupToolbar();
@@ -585,24 +592,33 @@ public class PostDetailActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        Log.d(TAG, "onCreateOptionsMenu called.");
-        if (post != null && post.getAuthorId() != null) {
-            boolean isAuthor = userEmail != null && !userEmail.isEmpty() && userEmail.equals(post.getAuthorId());
-            Log.d(TAG, "Menu check: isAdmin=" + isAdmin + ", isAuthor=" + isAuthor +
-                    " (PostAuthor: " + post.getAuthorId() + ", CurrentUser: " + userEmail + ")");
-            if (isAdmin || isAuthor) {
-                getMenuInflater().inflate(R.menu.menu_post_detail, menu);
-                Log.i(TAG, "Displaying post detail menu.");
-                return true;
-            } else {
-                Log.i(TAG, "Not displaying menu (Not admin and not author).");
-            }
-        } else {
-            Log.w(TAG, "Not displaying menu (Post object or Post AuthorId is null).");
-            if (post == null) Log.w(TAG, "Post object is null in onCreateOptionsMenu.");
-            else if (post.getAuthorId() == null) Log.w(TAG, "Post AuthorId is null in onCreateOptionsMenu.");
+        Log.d(TAG, "=== 메뉴 생성 시작 ===");
+        Log.d(TAG, "현재 사용자 이메일: " + userEmail);
+        Log.d(TAG, "게시글 작성자 ID: " + (post != null ? post.getAuthorId() : "null"));
+        Log.d(TAG, "관리자 여부: " + isAdmin);
+        Log.d(TAG, "게시글 카테고리: " + (post != null ? post.getCategory() : "null"));
+
+        if (post == null) {
+            Log.d(TAG, "게시글 정보가 없어 메뉴를 표시하지 않습니다.");
+            return super.onCreateOptionsMenu(menu);
         }
-        return super.onCreateOptionsMenu(menu); // 기본 메뉴 처리 (아무것도 표시 안 함)
+
+        // 관리자는 모든 게시글을 수정/삭제할 수 있음
+        if (isAdmin) {
+            Log.d(TAG, "관리자 권한으로 메뉴 표시");
+            getMenuInflater().inflate(R.menu.menu_post_detail, menu);
+            return true;
+        }
+
+        // 일반 사용자는 자신의 게시글만 수정/삭제할 수 있음
+        if (userEmail != null && userEmail.equals(post.getAuthorId())) {
+            Log.d(TAG, "작성자 권한으로 메뉴 표시");
+            getMenuInflater().inflate(R.menu.menu_post_detail, menu);
+            return true;
+        }
+
+        Log.d(TAG, "권한 없음 - 메뉴 표시 안함");
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override
