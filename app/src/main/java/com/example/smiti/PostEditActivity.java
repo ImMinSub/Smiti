@@ -477,9 +477,19 @@ public class PostEditActivity extends AppCompatActivity {
         String selectedCategoryDisplay = spinnerPostCategory.getSelectedItem() != null ? spinnerPostCategory.getSelectedItem().toString() : CATEGORY_DISPLAY_FREE;
         String boardTypeForApi = mapDisplayCategoryToApiBoardType(selectedCategoryDisplay);
 
-        if (boardTypeForApi.equals(BOARD_TYPE_API_NOTICE) && !isAdmin) {
-            Toast.makeText(this, "공지사항은 관리자만 수정할 수 있습니다. 카테고리가 자유게시판으로 변경됩니다.", Toast.LENGTH_LONG).show();
-            boardTypeForApi = BOARD_TYPE_API_FREE; // 관리자가 아니면 강제로 자유게시판으로
+        // 권한 체크
+        if (!isAdmin) {
+            // 일반 사용자인 경우
+            if (!currentUserEmail.equals(postToEdit.getAuthorId())) {
+                Toast.makeText(this, "다른 사용자의 글은 수정할 수 없습니다.", Toast.LENGTH_LONG).show();
+                showLoading(false);
+                return;
+            }
+            // 일반 사용자가 공지사항으로 변경하려는 경우
+            if (boardTypeForApi.equals(BOARD_TYPE_API_NOTICE)) {
+                Toast.makeText(this, "공지사항은 관리자만 작성할 수 있습니다. 카테고리가 자유게시판으로 변경됩니다.", Toast.LENGTH_LONG).show();
+                boardTypeForApi = BOARD_TYPE_API_FREE;
+            }
         }
 
         int postIdToUpdate;
@@ -492,7 +502,9 @@ public class PostEditActivity extends AppCompatActivity {
             return;
         }
 
-        Log.i(TAG, "Updating post (text fields only) - ID: " + postIdToUpdate + ", Email: " + currentUserEmail + ", BoardType: " + boardTypeForApi + ", Title: " + title);
+        Log.i(TAG, "Updating post - ID: " + postIdToUpdate + ", Email: " + currentUserEmail +
+                ", BoardType: " + boardTypeForApi + ", Title: " + title +
+                ", isAdmin: " + isAdmin + ", isAuthor: " + currentUserEmail.equals(postToEdit.getAuthorId()));
 
         Map<String, Object> requestBodyMap = new HashMap<>();
         requestBodyMap.put("post_id", postIdToUpdate);
@@ -500,10 +512,6 @@ public class PostEditActivity extends AppCompatActivity {
         requestBodyMap.put("title", title);
         requestBodyMap.put("content", content);
         requestBodyMap.put("board_type", boardTypeForApi);
-
-        // 파일 수정 기능은 현재 코드에서 지원하지 않는 것으로 보임.
-        // 만약 파일도 수정해야 한다면, createPostWithFile과 유사한 updatePostWithFile API 호출 로직 필요.
-        // 여기서는 텍스트 정보만 업데이트하는 API를 호출한다고 가정.
 
         Call<ApiResponse> call = RetrofitClient.getApiService().updatePost(postIdToUpdate, requestBodyMap);
         call.enqueue(new Callback<ApiResponse>() {
