@@ -60,14 +60,15 @@ public class ChatNetworkManager {
     
     // 첫 접속 관리
     private boolean isFirstTimeAccess = false;
-    
-    public interface NetworkCallback {
+      public interface NetworkCallback {
         void onNetworkConnected();
         void onNetworkDisconnected();
         void onSyncCompleted(List<Message> newMessages);
         void onSyncFailed(String error);
         void onSummaryReceived(String summary);
         void onSummaryFailed(String error);
+        void onTimeRecommendationReceived(String recommendation);
+        void onTimeRecommendationFailed(String error);
         void onMembersLoaded(List<Object> members); // User 객체 대신 Object 사용
         void onMembersLoadFailed(String error);
     }
@@ -473,14 +474,15 @@ public class ChatNetworkManager {
             }
         });
     }
-    
-    /**
-     * 채팅 요약 요청
+      /**
+     * 채팅 요약 요청 (AI 요약을 위한 긴 타임아웃 설정)
      */
     public void requestChatSummary() {
+        // AI 요약 처리는 시간이 오래 걸릴 수 있으므로 더 긴 타임아웃 설정
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(60, TimeUnit.SECONDS)  // 연결 타임아웃 60초
+                .readTimeout(180, TimeUnit.SECONDS)    // 읽기 타임아웃 3분 (AI 처리 시간 고려)
+                .writeTimeout(30, TimeUnit.SECONDS)    // 쓰기 타임아웃 30초
                 .build();
 
         JSONObject jsonBody = new JSONObject();
@@ -489,7 +491,9 @@ public class ChatNetworkManager {
         } catch (JSONException e) {
             Log.e(TAG, "요약 요청 JSON 생성 오류", e);
             if (networkCallback != null) {
-                networkCallback.onSummaryFailed("요청 생성 실패");
+                // UI 스레드에서 실행 보장
+                new Handler(Looper.getMainLooper()).post(() -> 
+                    networkCallback.onSummaryFailed("요청 생성 실패"));
             }
             return;
         }
@@ -502,35 +506,128 @@ public class ChatNetworkManager {
                 .post(requestBody)
                 .build();
 
+        Log.d(TAG, "채팅 요약 요청 시작 - 그룹 ID: " + currentGroupId);
+
         client.newCall(request).enqueue(new Callback() {
             @Override 
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "채팅 요약 요청 실패", e);
+                Log.e(TAG, "채팅 요약 요청 실패 (Ask Gemini)", e);
                 if (networkCallback != null) {
-                    networkCallback.onSummaryFailed("네트워크 오류");
+                    // UI 스레드에서 실행 보장
+                    new Handler(Looper.getMainLooper()).post(() -> 
+                        networkCallback.onSummaryFailed("네트워크 오류"));
                 }
             }
 
             @Override 
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                if (response.isSuccessful() && response.body() != null) {
-                    String responseData = response.body().string();
-                    try {
-                        JSONObject jsonObject = new JSONObject(responseData);
-                        final String summary = jsonObject.optString("summary", "요약을 생성할 수 없습니다.");
-                        if (networkCallback != null) {
-                            networkCallback.onSummaryReceived(summary);
+                try {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "채팅 요약 응답 받음");
+                        
+                        try {
+                            JSONObject jsonObject = new JSONObject(responseData);
+                            final String summary = jsonObject.optString("summary", "요약을 생성할 수 없습니다.");
+                            
+                            if (networkCallback != null) {
+                                // UI 스레드에서 실행 보장
+                                new Handler(Looper.getMainLooper()).post(() -> 
+                                    networkCallback.onSummaryReceived(summary));
+                            }
+                        } catch (JSONException e) {
+                            Log.e(TAG, "요약 응답 파싱 오류", e);
+                            if (networkCallback != null) {
+                                // UI 스레드에서 실행 보장
+                                new Handler(Looper.getMainLooper()).post(() -> 
+                                    networkCallback.onSummaryFailed("응답 처리 오류"));
+                            }
                         }
-                    } catch (JSONException e) {
-                        Log.e(TAG, "요약 응답 파싱 오류", e);
+                    } else {
+                        Log.e(TAG, "채팅 요약 서버 오류: " + response.code());
                         if (networkCallback != null) {
-                            networkCallback.onSummaryFailed("응답 처리 오류");
+                            // UI 스레드에서 실행 보장
+                            new Handler(Looper.getMainLooper()).post(() -> 
+                                networkCallback.onSummaryFailed("서버 오류: " + response.code()));
                         }
                     }
-                } else {
-                    Log.e(TAG, "채팅 요약 서버 오류: " + response.code());
-                    if (networkCallback != null) {
-                        networkCallback.onSummaryFailed("서버 오류: " + response.code());
+                } finally {
+                    // 응답 바디 닫기
+                    if (response.body() != null) {
+                        response.body().close();
+                    }
+                }
+            }        });
+    }
+    
+    /**
+     * 시간 추천 요청 (AI 기반 추천 시간 계산)
+     */
+    public void requestTimeRecommendation() {
+        // AI 시간 추천 처리는 시간이 오래 걸릴 수 있으므로 긴 타임아웃 설정
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(60, TimeUnit.SECONDS)  // 연결 타임아웃 60초
+                .readTimeout(180, TimeUnit.SECONDS)    // 읽기 타임아웃 3분 (AI 처리 시간 고려)
+                .writeTimeout(30, TimeUnit.SECONDS)    // 쓰기 타임아웃 30초
+                .build();
+
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/groups/" + currentGroupId + "/like-times")
+                .get()
+                .build();
+
+        Log.d(TAG, "시간 추천 요청 시작 - 그룹 ID: " + currentGroupId);
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override 
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "시간 추천 요청 실패", e);
+                if (networkCallback != null) {
+                    // UI 스레드에서 실행 보장
+                    new Handler(Looper.getMainLooper()).post(() -> 
+                        networkCallback.onTimeRecommendationFailed("네트워크 오류"));
+                }
+            }
+
+            @Override 
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {                try {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String responseData = response.body().string();
+                        Log.d(TAG, "시간 추천 응답 받음: " + responseData);
+                        
+                        try {
+                            JSONObject jsonObject = new JSONObject(responseData);
+                            Log.d(TAG, "JSON 파싱 성공: " + jsonObject.toString());                            // API 응답에서 like_time 필드 추출
+                            String recommendation = jsonObject.optString("like_time", "추천 시간을 생성할 수 없습니다.");
+                            
+                            // 마크다운 형식을 일반 텍스트로 변환
+                            final String finalRecommendation = formatRecommendationText(recommendation);
+                            
+                            if (networkCallback != null) {
+                                // UI 스레드에서 실행 보장
+                                new Handler(Looper.getMainLooper()).post(() -> 
+                                    networkCallback.onTimeRecommendationReceived(finalRecommendation));
+                            }
+                        } catch (JSONException e) {
+                            Log.e(TAG, "시간 추천 응답 파싱 오류", e);
+                            if (networkCallback != null) {
+                                // UI 스레드에서 실행 보장
+                                new Handler(Looper.getMainLooper()).post(() -> 
+                                    networkCallback.onTimeRecommendationFailed("응답 처리 오류"));
+                            }
+                        }
+                    } else {
+                        Log.e(TAG, "시간 추천 서버 오류: " + response.code());
+                        if (networkCallback != null) {
+                            // UI 스레드에서 실행 보장
+                            new Handler(Looper.getMainLooper()).post(() -> 
+                                networkCallback.onTimeRecommendationFailed("서버 오류: " + response.code()));
+                        }
+                    }
+                } finally {
+                    // 응답 바디 닫기
+                    if (response.body() != null) {
+                        response.body().close();
                     }
                 }
             }
@@ -653,7 +750,29 @@ public class ChatNetworkManager {
         
         return System.currentTimeMillis();
     }
-    
+      /**
+     * 마크다운 형식의 추천 시간 텍스트를 읽기 쉬운 형식으로 변환
+     */
+    private String formatRecommendationText(String rawText) {
+        if (rawText == null || rawText.trim().isEmpty()) {
+            return "추천 시간을 생성할 수 없습니다.";
+        }
+        
+        return rawText
+                // 마크다운 굵은 글씨 제거 (**텍스트** -> 텍스트)
+                .replaceAll("\\*\\*([^*]+)\\*\\*", "$1")
+                // 마크다운 이탤릭 제거 (*텍스트* -> 텍스트)
+                .replaceAll("\\*([^*]+)\\*", "$1")
+                // 마크다운 리스트 마커 제거 (- -> 없음, * -> 없음)
+                .replaceAll("^\\s*[*-]\\s+", "")
+                // 대괄호 제거 ([텍스트] -> 텍스트)
+                .replaceAll("\\[([^\\]]+)\\]", "$1")
+                // 연속된 줄바꿈을 하나로 줄임
+                .replaceAll("\\n\\s*\\n", "\n")
+                // 앞뒤 공백 제거
+                .trim();
+    }
+
     /**
      * 네트워크 리시버 해제
      */
