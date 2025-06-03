@@ -375,6 +375,7 @@ public class ProfileActivity extends AppCompatActivity {
                     ImageView iconArrow = groupItemView.findViewById(R.id.icon_arrow); // list_item_my_study_group.xml에 icon_arrow 필요
 
                     tvGroupName.setText(group.getName());
+                    Log.d(TAG, "Displaying group: " + group.getName() + " (ID: " + group.getId() + ")");
                     // 아이콘과 화살표는 기본값 사용 또는 서버 응답에 따라 설정 가능
 
                     groupItemView.setOnClickListener(v -> {
