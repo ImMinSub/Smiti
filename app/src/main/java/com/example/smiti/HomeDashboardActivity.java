@@ -111,10 +111,18 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
         smbtiGroupsAdapter = new CardAdapter(this, (ArrayList<CardItem>) smbtiItems, new CardAdapter.OnItemInteractionListener() {
             @Override
             public void onItemClick(CardItem item) {
-                Toast.makeText(HomeDashboardActivity.this, "SMBTI 그룹: " + item.getTitle(), Toast.LENGTH_SHORT).show();
-                if (item.getActivityToOpen() != null) {
-                    Intent intent = new Intent(HomeDashboardActivity.this, item.getActivityToOpen());
+                // Toast.makeText(HomeDashboardActivity.this, "SMBTI 그룹: " + item.getTitle(), Toast.LENGTH_SHORT).show();
+                // GroupDetailActivity로 이동하도록 수정 및 그룹 ID 전달
+                if (item.getGroupId() != null) {
+                    Intent intent = new Intent(HomeDashboardActivity.this, GroupDetailActivity.class);
+                    intent.putExtra("groupId", item.getGroupId()); // 그룹 ID 전달
+                    intent.putExtra("groupName", item.getTitle()); // 그룹 이름 전달
+                    intent.putExtra("groupDescription", item.getDescription()); // 그룹 설명 전달
+                    intent.putExtra("maxMembers", item.getMaxMembers()); // 최대 인원 전달
+                    intent.putExtra("currentMembers", item.getCurrentMembers()); // 현재 인원 전달
                     startActivity(intent);
+                } else {
+                    Toast.makeText(HomeDashboardActivity.this, "그룹 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -155,10 +163,18 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
 
     @Override
     public void onItemClick(CardItem item) {
-        Toast.makeText(this, "클릭: " + item.getTitle() + "\n카테고리: " + item.getCategory() + "\n시작일: " + item.getStudyDateFormatted(), Toast.LENGTH_LONG).show();
-        if (item.getActivityToOpen() != null) {
-            Intent intent = new Intent(this, item.getActivityToOpen());
+        // Toast.makeText(this, "클릭: " + item.getTitle() + "\n카테고리: " + item.getCategory() + "\n시작일: " + item.getStudyDateFormatted(), Toast.LENGTH_LONG).show();
+        // GroupDetailActivity로 이동하도록 수정 및 그룹 ID 전달
+        if (item.getGroupId() != null) {
+            Intent intent = new Intent(this, GroupDetailActivity.class);
+            intent.putExtra("groupId", item.getGroupId()); // 그룹 ID 전달
+            intent.putExtra("groupName", item.getTitle()); // 그룹 이름 전달
+            intent.putExtra("groupDescription", item.getDescription()); // 그룹 설명 전달
+            intent.putExtra("maxMembers", item.getMaxMembers()); // 최대 인원 전달
+            intent.putExtra("currentMembers", item.getCurrentMembers()); // 현재 인원 전달
             startActivity(intent);
+        } else {
+            Toast.makeText(this, "그룹 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -284,12 +300,13 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
                             CardItem cardItem = new CardItem(
                                 imageResource,
                                 groupAlt.getName(),
-                                "", // 설명 필드가 없으므로 빈 문자열
-                                GroupSearchResultActivity.class,
+                                "", // GroupAlternate에 설명 필드가 없으므로 빈 문자열 전달
+                                GroupDetailActivity.class, // 클릭 시 GroupDetailActivity 열기
                                 "", // 카테고리 필드가 없으므로 빈 문자열
-                                Calendar.getInstance(), // 기본 날짜 설정
+                                Calendar.getInstance(), // 기본 날짜 설정 (HomeDashboard에서는 날짜 정보 사용 안 함)
                                 groupAlt.getMax_members(), // GroupAlternate에서 max_members 값 가져옴
-                                groupAlt.getCurrent_members() // GroupAlternate에서 current_members 값 가져옴
+                                groupAlt.getCurrent_members(), // GroupAlternate에서 current_members 값 가져옴
+                                String.valueOf(groupAlt.getId()) // 그룹 ID를 String으로 변환하여 전달
                             );
                             latestGroupCardItems.add(cardItem);
                         }
@@ -373,13 +390,13 @@ public class HomeDashboardActivity extends AppCompatActivity implements CardAdap
                             CardItem cardItem = new CardItem(
                                 selectedImageResource,
                                 group.getName() != null ? group.getName() : "무제 그룹",
-                                group.getDescription() != null ? group.getDescription() : "",
-                                null, // 클릭 시 이동할 액티비티 (필요시 GroupSearchResultActivity 등으로 변경)
+                                group.getDescription() != null ? group.getDescription() : "", // 그룹 설명 전달
+                                GroupDetailActivity.class, // 클릭 시 GroupDetailActivity 열기
                                 "", // 카테고리 또는 SMBTI 유형 - 빈 문자열로 변경
-                                Calendar.getInstance(), // 기본 날짜 설정
+                                Calendar.getInstance(), // 기본 날짜 설정 (HomeDashboard에서는 날짜 정보 사용 안 함)
                                 group.getMax_members(), // Group에서 max_members 값 가져옴
-                                group.getCurrent_members() // Group에서 current_members 값 가져옴
-                                // API 응답에 maxMembers 정보가 있다면 group.getMaxMembers() 사용 - 삭제
+                                group.getCurrent_members(), // Group에서 current_members 값 가져옴
+                                String.valueOf(group.getId()) // 그룹 ID를 String으로 변환하여 전달
                             );
                             smbtiItems.add(cardItem);
                             count++;
