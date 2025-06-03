@@ -42,10 +42,10 @@ public class ChatUIManager {
     private final WeakReference<Activity> activityRef;    
     // UI 컴포넌트들 - WeakReference로 메모리 누수 방지
     private WeakReference<RecyclerView> recyclerViewRef;
-    private WeakReference<EditText> messageEditTextRef;
-    private WeakReference<ImageButton> sendButtonRef;
+    private WeakReference<EditText> messageEditTextRef;    private WeakReference<ImageButton> sendButtonRef;
     private WeakReference<ImageButton> attachButtonRef;
     private WeakReference<ImageButton> summaryButtonRef;
+    private WeakReference<ImageButton> timeRecommendButtonRef;
     private WeakReference<ImageButton> menuButtonRef;
     private WeakReference<BottomNavigationView> bottomNavigationViewRef;
     private WeakReference<View> rootViewRef;
@@ -62,11 +62,11 @@ public class ChatUIManager {
     // 초기화 상태 추적
     private volatile boolean isInitialized = false;
     private volatile boolean isDestroyed = false;
-    
-    public interface UICallback {
+      public interface UICallback {
         void onSendButtonClick();
         void onAttachButtonClick();
         void onSummaryButtonClick();
+        void onTimeRecommendButtonClick();
         void onMenuButtonClick();
         void onFileTypeSelected(String mimeType);
     }
@@ -125,8 +125,7 @@ public class ChatUIManager {
             return;
         }
         
-        try {
-            // 기본 뷰들 초기화
+        try {            // 기본 뷰들 초기화
             View rootView = activity.findViewById(android.R.id.content);
             RecyclerView recyclerView = activity.findViewById(R.id.recyclerView);
             EditText messageEditText = activity.findViewById(R.id.edit_message);
@@ -134,6 +133,7 @@ public class ChatUIManager {
             ImageButton attachButton = activity.findViewById(R.id.attach_button);
             BottomNavigationView bottomNavigationView = activity.findViewById(R.id.bottom_navigation);
             ImageButton summaryButton = activity.findViewById(R.id.summary_button);
+            ImageButton timeRecommendButton = activity.findViewById(R.id.time_recommend_button);
             ImageButton menuButton = activity.findViewById(R.id.menu_button);
             
             // 사이드바 관련 뷰 초기화
@@ -145,10 +145,10 @@ public class ChatUIManager {
             this.rootViewRef = new WeakReference<>(rootView);
             this.recyclerViewRef = new WeakReference<>(recyclerView);
             this.messageEditTextRef = new WeakReference<>(messageEditText);
-            this.sendButtonRef = new WeakReference<>(sendButton);
-            this.attachButtonRef = new WeakReference<>(attachButton);
+            this.sendButtonRef = new WeakReference<>(sendButton);            this.attachButtonRef = new WeakReference<>(attachButton);
             this.bottomNavigationViewRef = new WeakReference<>(bottomNavigationView);
             this.summaryButtonRef = new WeakReference<>(summaryButton);
+            this.timeRecommendButtonRef = new WeakReference<>(timeRecommendButton);
             this.menuButtonRef = new WeakReference<>(menuButton);
             this.drawerLayoutRef = new WeakReference<>(drawerLayout);
             this.navigationViewRef = new WeakReference<>(navigationView);
@@ -284,12 +284,20 @@ public class ChatUIManager {
                     }
                 });
             }
-            
-            ImageButton summaryButton = getSummaryButton();
+              ImageButton summaryButton = getSummaryButton();
             if (summaryButton != null) {
                 summaryButton.setOnClickListener(v -> {
                     if (getActivity() != null && !isDestroyed) {
                         callback.onSummaryButtonClick();
+                    }
+                });
+            }
+            
+            ImageButton timeRecommendButton = getTimeRecommendButton();
+            if (timeRecommendButton != null) {
+                timeRecommendButton.setOnClickListener(v -> {
+                    if (getActivity() != null && !isDestroyed) {
+                        callback.onTimeRecommendButtonClick();
                     }
                 });
             }
@@ -411,8 +419,7 @@ public class ChatUIManager {
             showToast("파일 선택 창을 열 수 없습니다");
         }
     }
-    
-    /**
+      /**
      * 요약 결과 다이얼로그 표시 - 안전성 개선
      */
     public void showSummaryDialog(String summary) {
@@ -445,6 +452,63 @@ public class ChatUIManager {
             } catch (Exception e) {
                 Log.e(TAG, "Error showing summary dialog", e);
                 showToast("요약 창을 열 수 없습니다");
+            }
+        });
+    }
+    
+    /**
+     * 시간 추천 다이얼로그 표시 - 안전성 개선
+     */
+    public void showTimeRecommendationDialog(String recommendation) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            Log.e(TAG, "Cannot show time recommendation dialog: Activity is null");
+            return;
+        }
+        
+        if (recommendation == null || recommendation.trim().isEmpty()) {
+            Log.w(TAG, "Time recommendation is empty");
+            showToast("추천 시간 내용이 없습니다");
+            return;
+        }
+        
+        // 기존 다이얼로그 정리
+        dismissCurrentDialog();
+        
+        runSafely(() -> {
+            try {
+                // 커스텀 다이얼로그 레이아웃 인플레이트
+                View dialogView = activity.getLayoutInflater().inflate(R.layout.dialog_time_recommendation, null);
+                
+                // 추천 내용 설정
+                android.widget.TextView tvRecommendation = dialogView.findViewById(R.id.tv_recommendation_content);
+                if (tvRecommendation != null) {
+                    tvRecommendation.setText(recommendation.trim());
+                }
+                
+                // 다이얼로그 생성
+                AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+                builder.setView(dialogView);
+                builder.setCancelable(true);
+                
+                // 확인 버튼 처리
+                android.widget.Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+                if (btnConfirm != null) {
+                    btnConfirm.setOnClickListener(v -> {
+                        if (currentDialog != null) {
+                            currentDialog.dismiss();
+                        }
+                    });
+                }
+                
+                builder.setOnDismissListener(dialog -> currentDialog = null);
+                
+                currentDialog = builder.create();
+                currentDialog.show();
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error showing time recommendation dialog", e);
+                showToast("시간 추천 창을 열 수 없습니다");
             }
         });
     }
@@ -925,9 +989,12 @@ public class ChatUIManager {
     public ImageButton getAttachButton() {
         return attachButtonRef != null ? attachButtonRef.get() : null;
     }
-    
-    public ImageButton getSummaryButton() {
+      public ImageButton getSummaryButton() {
         return summaryButtonRef != null ? summaryButtonRef.get() : null;
+    }
+    
+    public ImageButton getTimeRecommendButton() {
+        return timeRecommendButtonRef != null ? timeRecommendButtonRef.get() : null;
     }
     
     public ImageButton getMenuButton() {
@@ -993,10 +1060,14 @@ public class ChatUIManager {
             attachButtonRef.clear();
             attachButtonRef = null;
         }
-        
-        if (summaryButtonRef != null) {
+          if (summaryButtonRef != null) {
             summaryButtonRef.clear();
             summaryButtonRef = null;
+        }
+        
+        if (timeRecommendButtonRef != null) {
+            timeRecommendButtonRef.clear();
+            timeRecommendButtonRef = null;
         }
         
         if (menuButtonRef != null) {
