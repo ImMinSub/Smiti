@@ -474,16 +474,27 @@ public class ChatUIManager {
         
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
-        runSafely(() -> {
+          runSafely(() -> {
             try {
                 // 커스텀 다이얼로그 레이아웃 인플레이트
                 View dialogView = activity.getLayoutInflater().inflate(R.layout.dialog_time_recommendation, null);
                 
-                // 추천 내용 설정
-                android.widget.TextView tvRecommendation = dialogView.findViewById(R.id.tv_recommendation_content);
-                if (tvRecommendation != null) {
-                    tvRecommendation.setText(recommendation.trim());
+                // 추천 내용을 3개 섹션으로 분할
+                String[] sections = parseRecommendationSections(recommendation.trim());
+                
+                // 각 섹션별 TextView에 내용 설정
+                android.widget.TextView tvAvailableTimes = dialogView.findViewById(R.id.tv_available_times);
+                android.widget.TextView tvGroupRecommended = dialogView.findViewById(R.id.tv_group_recommended_times);
+                android.widget.TextView tvFinalRecommendation = dialogView.findViewById(R.id.tv_final_recommendation);
+                
+                if (tvAvailableTimes != null) {
+                    tvAvailableTimes.setText(sections[0]);
+                }
+                if (tvGroupRecommended != null) {
+                    tvGroupRecommended.setText(sections[1]);
+                }
+                if (tvFinalRecommendation != null) {
+                    tvFinalRecommendation.setText(sections[2]);
                 }
                 
                 // 다이얼로그 생성
@@ -504,6 +515,10 @@ public class ChatUIManager {
                 builder.setOnDismissListener(dialog -> currentDialog = null);
                 
                 currentDialog = builder.create();
+                // 다이얼로그 배경을 투명하게 설정하여 둥근 모서리가 보이도록 함
+                if (currentDialog.getWindow() != null) {
+                    currentDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+                }
                 currentDialog.show();
                 
             } catch (Exception e) {
@@ -1099,10 +1114,83 @@ public class ChatUIManager {
             membersRecyclerViewRef.clear();
             membersRecyclerViewRef = null;
         }
-        
-        // 어댑터 정리
+          // 어댑터 정리
         memberAdapter = null;
         
         Log.d(TAG, "ChatUIManager cleanup completed");
+    }
+
+    /**
+     * 추천 시간 텍스트를 3개 섹션으로 분할
+     */
+    private String[] parseRecommendationSections(String recommendation) {
+        String[] sections = new String[3];
+        sections[0] = "정보 없음";
+        sections[1] = "정보 없음";
+        sections[2] = "정보 없음";
+        
+        if (recommendation == null || recommendation.trim().isEmpty()) {
+            return sections;
+        }
+        
+        try {
+            // 추천 내용을 줄바꿈으로 분할
+            String[] lines = recommendation.split("\n");
+            StringBuilder section1 = new StringBuilder();
+            StringBuilder section2 = new StringBuilder();
+            StringBuilder section3 = new StringBuilder();
+            
+            int currentSection = 0;
+            
+            for (String line : lines) {
+                String trimmedLine = line.trim();
+                if (trimmedLine.isEmpty()) continue;
+                
+                // 섹션 구분 기준
+                if (trimmedLine.contains("1.") || trimmedLine.contains("스터디 가능 시간대")) {
+                    currentSection = 1;
+                    continue;
+                } else if (trimmedLine.contains("2.") || trimmedLine.contains("가장 많은") || trimmedLine.contains("그룹 사용자")) {
+                    currentSection = 2;
+                    continue;
+                } else if (trimmedLine.contains("3.") || trimmedLine.contains("추천 시간대")) {
+                    currentSection = 3;
+                    continue;
+                }
+                
+                // 각 섹션에 내용 추가
+                switch (currentSection) {
+                    case 1:
+                        if (section1.length() > 0) section1.append("\n");
+                        section1.append(trimmedLine);
+                        break;
+                    case 2:
+                        if (section2.length() > 0) section2.append("\n");
+                        section2.append(trimmedLine);
+                        break;
+                    case 3:
+                        if (section3.length() > 0) section3.append("\n");
+                        section3.append(trimmedLine);
+                        break;
+                }
+            }
+            
+            // 섹션별 내용 설정
+            if (section1.length() > 0) {
+                sections[0] = section1.toString();
+            }
+            if (section2.length() > 0) {
+                sections[1] = section2.toString();
+            }
+            if (section3.length() > 0) {
+                sections[2] = section3.toString();
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing recommendation sections", e);
+            sections[0] = recommendation; // 파싱 실패시 전체 내용을 첫 번째 섹션에 표시
+        }
+        
+        return sections;
     }
 }
