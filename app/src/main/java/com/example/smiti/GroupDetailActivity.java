@@ -92,20 +92,29 @@ public class GroupDetailActivity extends AppCompatActivity {
         // Intent로부터 데이터 수신
         Intent intent = getIntent();
         if (intent != null) {
-            // 그룹 ID는 필수로 가져옵니다.
-            String groupId = intent.getStringExtra("groupId");
-            if (groupId == null || groupId.isEmpty()) {
-                Toast.makeText(this, "그룹 ID 정보가 없습니다.", Toast.LENGTH_SHORT).show();
-                finish(); // 그룹 ID 없으면 종료
+            // EXTRA_GROUP으로 Group 객체를 받아옵니다.
+            currentGroup = (Group) intent.getSerializableExtra(EXTRA_GROUP);
+            isAiMode = intent.getBooleanExtra(EXTRA_IS_AI_MODE, false);
+
+            if (currentGroup == null) {
+                Toast.makeText(this, "그룹 정보를 불러올 수 없습니다.", Toast.LENGTH_SHORT).show();
+                finish();
                 return;
             }
 
-            // Intent Extra에서 상세 정보 가져오기
-            String groupName = intent.getStringExtra("groupName");
-            String groupDescription = intent.getStringExtra("groupDescription");
-            int maxMembers = intent.getIntExtra("maxMembers", -1); // 기본값 -1
-            int currentMembers = intent.getIntExtra("currentMembers", -1); // 기본값 -1
-            boolean isAiMode = intent.getBooleanExtra(EXTRA_IS_AI_MODE, false); // AI 모드 여부
+            // 그룹 ID는 currentGroup에서 가져옵니다.
+            String groupId = currentGroup.getId();
+            if (groupId == null || groupId.isEmpty()) {
+                Toast.makeText(this, "그룹 ID 정보가 없습니다.", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+
+            // Intent Extra에서 상세 정보 가져오기 (Group 객체에서 직접 가져올 수도 있음)
+            String groupName = currentGroup.getName();
+            String groupDescription = currentGroup.getDescription();
+            int maxMembers = currentGroup.getMax_members();
+            int currentMembers = currentGroup.getCurrent_members();
 
             // SharedPreferences에서 사용자 이메일 가져오기
             SharedPreferences sharedPreferences = getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE);
@@ -119,13 +128,8 @@ public class GroupDetailActivity extends AppCompatActivity {
             }
 
             // Intent extra에 이름 정보가 있으면 먼저 UI를 업데이트
-            if (groupName != null && !groupName.isEmpty()) {
-                groupNameFromIntent = groupName; // 멤버 변수에 그룹 이름 저장
-                populateGroupDetails(groupName, groupDescription, maxMembers, currentMembers, isAiMode);
-            } else {
-                // 이름 정보가 없으면 (예: 다른 경로로 진입) API 호출
-                Toast.makeText(this, "그룹 정보를 불러오는 중입니다.", Toast.LENGTH_SHORT).show();
-            }
+            // 이제 groupNameFromIntent 대신 currentGroup.getName()을 직접 사용
+            populateGroupDetails(groupName, groupDescription, maxMembers, currentMembers, isAiMode);
 
             // API 호출하여 그룹 상세 정보 가져오기 (ID 기반)
             fetchGroupDetails(groupId, isAiMode, currentUserEmail); // 이메일 전달
