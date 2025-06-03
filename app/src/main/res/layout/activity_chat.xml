@@ -50,14 +50,26 @@
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
-                <!-- 요약 버튼 -->
+                <!-- 시간 추천 버튼 -->
                 <ImageButton
-                    android:id="@+id/summary_button"
+                    android:id="@+id/time_recommend_button"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
                     android:layout_marginEnd="16dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="시간 추천"
+                    android:src="@drawable/ic_calendar" />
+
+                <!-- 요약 버튼 -->
+                <ImageButton
+                    android:id="@+id/summary_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_toStartOf="@id/time_recommend_button"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="채팅 요약"
                     android:src="@drawable/ic_summary" />
