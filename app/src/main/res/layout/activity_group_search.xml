@@ -146,6 +146,37 @@
                 android:layout_marginBottom="16dp"
                 android:visibility="visible"/>
 
+            <!-- 검색된 결과가 없을 때 표시할 레이아웃 -->
+            <LinearLayout
+                android:id="@+id/empty_result_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="16dp"
+                android:visibility="gone"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:id="@+id/tv_empty_message"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="검색된 결과가 없습니다."
+                    android:textSize="16sp"
+                    android:textColor="#757575"
+                    android:layout_marginBottom="16dp"/>
+
+                <Button
+                    android:id="@+id/btn_create_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="그룹 생성"
+                    android:background="@drawable/bg_button_primary"
+                    android:textColor="@android:color/white"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
 
             <TextView
                 android:layout_width="wrap_content"
@@ -294,37 +325,6 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:visibility="gone" />
-
-            <LinearLayout
-                android:id="@+id/empty_result_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:padding="16dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/tv_empty_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="검색된 결과가 없습니다."
-                    android:textSize="16sp"
-                    android:textColor="#757575"
-                    android:layout_marginBottom="16dp"/>
-
-                <Button
-                    android:id="@+id/btn_create_group"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="AI 그룹 생성"
-                    android:background="@drawable/bg_button_primary"
-                    android:textColor="@android:color/white"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:visibility="gone"/>
-            </LinearLayout>
         </FrameLayout>
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
