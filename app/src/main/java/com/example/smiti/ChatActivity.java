@@ -332,14 +332,20 @@ public class ChatActivity extends AppCompatActivity implements
         // 사용자 활동 알림 (지능형 동기화)
         networkManager.notifyUserActivity();
         uiManager.showFileTypeSelectionDialog(this);
-    }
-    
-    @Override
+    }    @Override
     public void onSummaryButtonClick() {
         // 사용자 활동 알림 (지능형 동기화)
         networkManager.notifyUserActivity();
-        uiManager.showToast("채팅 요약 생성 중...");
+        uiManager.showToast("AI 요약 생성 중");
         networkManager.requestChatSummary();
+    }
+    
+    @Override
+    public void onTimeRecommendButtonClick() {
+        // 사용자 활동 알림 (지능형 동기화)
+        networkManager.notifyUserActivity();
+        uiManager.showToast("AI 기반 추천 시간 계산 중");
+        networkManager.requestTimeRecommendation();
     }
     
     @Override
@@ -493,12 +499,42 @@ public class ChatActivity extends AppCompatActivity implements
         runOnUiThread(() -> {
             uiManager.showSummaryDialog(summary);
         });
+    }    @Override
+    public void onSummaryFailed(String error) {
+        runOnUiThread(() -> {
+            String userFriendlyMessage;
+            if (error.contains("네트워크 오류") || error.contains("timeout")) {
+                userFriendlyMessage = "채팅 요약 요청 실패: 네트워크 오류 (처리 시간 초과)";
+            } else if (error.contains("서버 오류")) {
+                userFriendlyMessage = "채팅 요약 요청 실패: 서버 오류";
+            } else {
+                userFriendlyMessage = "채팅 요약 요청 실패: " + error;
+            }
+            uiManager.showToast(userFriendlyMessage);
+            Log.e(TAG, "채팅 요약 실패: " + error);
+        });
     }
     
     @Override
-    public void onSummaryFailed(String error) {
+    public void onTimeRecommendationReceived(String recommendation) {
         runOnUiThread(() -> {
-            uiManager.showToast("요약 생성 실패: " + error);
+            uiManager.showTimeRecommendationDialog(recommendation);
+        });
+    }
+    
+    @Override
+    public void onTimeRecommendationFailed(String error) {
+        runOnUiThread(() -> {
+            String userFriendlyMessage;
+            if (error.contains("네트워크 오류") || error.contains("timeout")) {
+                userFriendlyMessage = "시간 추천 요청 실패: 네트워크 오류 (처리 시간 초과)";
+            } else if (error.contains("서버 오류")) {
+                userFriendlyMessage = "시간 추천 요청 실패: 서버 오류";
+            } else {
+                userFriendlyMessage = "시간 추천 요청 실패: " + error;
+            }
+            uiManager.showToast(userFriendlyMessage);
+            Log.e(TAG, "시간 추천 실패: " + error);
         });
     }
     
