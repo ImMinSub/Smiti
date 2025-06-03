@@ -9,14 +9,14 @@ public class Group implements Serializable {
     private static final long serialVersionUID = 1L;
     private String id;
 
-    @SerializedName("group_name")
+    @SerializedName(value = "name", alternate = {"group_name"})
     private String name;
 
     private String description;
     private int memberCount;
     private String category;
 
-    @SerializedName("score") // AI 추천 모드에서도 이 필드에 점수가 올 수 있음
+    @SerializedName("score") // 서버 응답 필드명을 다시 "score"로 지정
     private double mbtiScore;  // MBTI 궁합 점수 또는 AI 추천 점수 (소수점 지원)
 
     @SerializedName("max_members") // JSON 필드명과 일치하도록 어노테이션 추가 (필요시)
