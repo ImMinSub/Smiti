@@ -159,7 +159,19 @@
                 android:background="@drawable/bg_join_button_rounded"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="16dp"
-                app:backgroundTint="@null"/> <!-- background drawable 사용 시 backgroundTint는 null로 -->
+                android:enabled="false"
+                android:visibility="gone"/> <!-- 기본적으로 숨김 -->
+
+            <!-- 그룹 탈퇴하기 버튼 (초기 숨김) -->
+            <Button
+                android:id="@+id/btn_group_detail_leave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="52dp"
+                android:text="그룹 탈퇴하기"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/bg_leave_button_rounded"/> <!-- 탈퇴 버튼용 배경 필요 -->
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
