@@ -234,7 +234,8 @@ public class AddCardActivity extends AppCompatActivity {
                             selectedCategory,
                             selectedDateCalendar,
                             currentMemberCount,      // maxMembers (최대 인원) 전달
-                            1 // currentMembers (현재 인원)로 1 전달 - 추가
+                            1, // currentMembers (현재 인원)로 1 전달 - 추가
+                            "" // groupId: 새로 생성하는 그룹이므로 빈 문자열 전달
                     );
 
                     CardDataHolder.addPopularItem(newCard); // 인기 그룹 목록에 추가
