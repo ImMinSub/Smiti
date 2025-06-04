@@ -92,29 +92,43 @@ public class GroupDetailActivity extends AppCompatActivity {
         // Intent로부터 데이터 수신
         Intent intent = getIntent();
         if (intent != null) {
-            // EXTRA_GROUP으로 Group 객체를 받아옵니다.
+            // 두 가지 방식 지원: 1) EXTRA_GROUP으로 Group 객체 전달, 2) 개별 필드들 전달
             currentGroup = (Group) intent.getSerializableExtra(EXTRA_GROUP);
             isAiMode = intent.getBooleanExtra(EXTRA_IS_AI_MODE, false);
 
-            if (currentGroup == null) {
-                Toast.makeText(this, "그룹 정보를 불러올 수 없습니다.", Toast.LENGTH_SHORT).show();
-                finish();
-                return;
+            String groupId = null;
+            String groupName = null;
+            String groupDescription = null;
+            int maxMembers = 0;
+            int currentMembers = 0;
+
+            if (currentGroup != null) {
+                // Group 객체가 전달된 경우
+                groupId = currentGroup.getId();
+                groupName = currentGroup.getName();
+                groupDescription = currentGroup.getDescription();
+                maxMembers = currentGroup.getMax_members();
+                currentMembers = currentGroup.getCurrent_members();
+            } else {
+                // 개별 필드들이 전달된 경우 (HomeDashboardActivity에서 오는 경우)
+                groupId = intent.getStringExtra("groupId");
+                groupName = intent.getStringExtra("groupName");
+                groupDescription = intent.getStringExtra("groupDescription");
+                maxMembers = intent.getIntExtra("maxMembers", 0);
+                currentMembers = intent.getIntExtra("currentMembers", 0);
+
+                // 임시 Group 객체 생성 (API 호출 전까지 사용)
+                if (groupId != null && groupName != null) {
+                    currentGroup = new Group(groupId, groupName, groupDescription != null ? groupDescription : "", 
+                                           currentMembers, "", 0.0, maxMembers, currentMembers);
+                }
             }
 
-            // 그룹 ID는 currentGroup에서 가져옵니다.
-            String groupId = currentGroup.getId();
             if (groupId == null || groupId.isEmpty()) {
                 Toast.makeText(this, "그룹 ID 정보가 없습니다.", Toast.LENGTH_SHORT).show();
                 finish();
                 return;
             }
-
-            // Intent Extra에서 상세 정보 가져오기 (Group 객체에서 직접 가져올 수도 있음)
-            String groupName = currentGroup.getName();
-            String groupDescription = currentGroup.getDescription();
-            int maxMembers = currentGroup.getMax_members();
-            int currentMembers = currentGroup.getCurrent_members();
 
             // SharedPreferences에서 사용자 이메일 가져오기
             SharedPreferences sharedPreferences = getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE);
@@ -128,7 +142,7 @@ public class GroupDetailActivity extends AppCompatActivity {
             }
 
             // Intent extra에 이름 정보가 있으면 먼저 UI를 업데이트
-            // 이제 groupNameFromIntent 대신 currentGroup.getName()을 직접 사용
+            // Group 객체 또는 개별 필드에서 정보 가져오기
             populateGroupDetails(groupName, groupDescription, maxMembers, currentMembers, isAiMode);
 
             // API 호출하여 그룹 상세 정보 가져오기 (ID 기반)
