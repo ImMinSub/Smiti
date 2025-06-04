@@ -109,13 +109,9 @@ public class SmbtiResultActivity extends AppCompatActivity {
         drawable.setColor(Color.parseColor(resultColor));
         drawable.setCornerRadius(24f);
         tvSmbtiType.setBackground(drawable);
-    }
-
-    private void setupProfileImage() {
-        int imageResId = getSmbtiImageResource(smbtiResult);
-        if (imageResId != 0) {
-            ivProfile.setImageResource(imageResId);
-        }
+    }    private void setupProfileImage() {
+        int imageResId = com.example.smiti.utils.SmbtiImageUtils.getProfileImageResource(smbtiResult);
+        ivProfile.setImageResource(imageResId);
     }
 
     private void setupButtonStyles() {
@@ -162,31 +158,7 @@ public class SmbtiResultActivity extends AppCompatActivity {
         String baseColor = getSmbtiResultColor(smbtiType);
         // 50% 투명도 적용 - 모든 케이스에서 "#"만 제거하고 "80" 추가
         return "#80" + baseColor.substring(1);
-    }
-
-    private int getSmbtiImageResource(String smbtiType) {
-        switch (smbtiType) {
-            case "TIPD": return R.drawable.tipd;
-            case "TIPM": return R.drawable.tipm;
-            case "TIFD": return R.drawable.tifd;
-            case "TIFM": return R.drawable.tifm;
-            case "TCPD": return R.drawable.tcpd;
-            case "TCPM": return R.drawable.tcpm;
-            case "TCFD": return R.drawable.tcfd;
-            case "TCFM": return R.drawable.tcfm;
-            case "EIPD": return R.drawable.eipd;
-            case "EIPM": return R.drawable.eipm;
-            case "EIFD": return R.drawable.eifd;
-            case "EIFM": return R.drawable.eifm;
-            case "ECPD": return R.drawable.ecpd;
-            case "ECPM": return R.drawable.ecpm;
-            case "ECFD": return R.drawable.ecfd;
-            case "ECFM": return R.drawable.ecfm;
-            default: return R.drawable.ic_profile_placeholder;
-        }
-    }
-
-    private void setupPersonalityTags(String[] tags) {
+    }    private void setupPersonalityTags(String[] tags) {
         if (tags == null || tags.length == 0) return;
 
         // 기존 태그들 제거
