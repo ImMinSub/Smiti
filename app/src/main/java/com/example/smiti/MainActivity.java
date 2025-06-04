@@ -241,6 +241,8 @@ public class MainActivity extends AppCompatActivity implements TodoAdapter.OnTod
         try {
             SharedPreferences sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
             String imagePath = sharedPreferences.getString("profile_image_path", "");
+            
+            // 먼저 사용자가 직접 설정한 이미지가 있는지 확인
             if (!imagePath.isEmpty()) {
                 File imgFile = new File(imagePath);
                 if(imgFile.exists()) {
@@ -248,20 +250,39 @@ public class MainActivity extends AppCompatActivity implements TodoAdapter.OnTod
                     if (myBitmap != null) {
                         profileImageView.setImageBitmap(myBitmap);
                         Log.d(TAG, "저장된 프로필 이미지 로드 성공");
+                        return; // 사용자 설정 이미지를 로드했으므로 종료
                     } else {
                         Log.e(TAG, "비트맵 디코딩 실패");
-                        profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
                     }
                 } else {
                     Log.e(TAG, "프로필 이미지 파일이 존재하지 않음");
-                    profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
                 }
             } else {
                 Log.d(TAG, "저장된 프로필 이미지 경로 없음");
+            }
+            
+            // 사용자 설정 이미지가 없으면 SMBTI 이미지 사용
+            loadSmbtiProfileImage(sharedPreferences);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "프로필 이미지 로드 중 예외 발생", e);
+            profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
+        }
+    }
+    
+    private void loadSmbtiProfileImage(SharedPreferences sharedPreferences) {
+        try {
+            String smbti = sharedPreferences.getString("mbti", "");
+            if (!smbti.isEmpty()) {
+                int smbtiImageResource = com.example.smiti.utils.SmbtiImageUtils.getProfileImageResource(smbti);
+                profileImageView.setImageResource(smbtiImageResource);
+                Log.d(TAG, "SMBTI 프로필 이미지 로드 성공: " + smbti);
+            } else {
+                Log.d(TAG, "SMBTI 정보 없음, 기본 이미지 사용");
                 profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
             }
         } catch (Exception e) {
-            Log.e(TAG, "프로필 이미지 로드 중 예외 발생", e);
+            Log.e(TAG, "SMBTI 프로필 이미지 로드 중 오류", e);
             profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
         }
     }
