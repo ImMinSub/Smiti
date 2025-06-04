@@ -199,7 +199,11 @@ public class GroupDetailActivity extends AppCompatActivity {
                                 Toast.makeText(GroupDetailActivity.this,
                                         currentGroup.getName() + " 그룹에 성공적으로 가입되었습니다.",
                                         Toast.LENGTH_SHORT).show();
-                                // UI 갱신 또는 다른 액티비티로 이동 등의 후처리 필요
+                                // 가입 성공 후 버튼 상태 변경
+                                runOnUiThread(() -> {
+                                    btnJoinGroupDetail.setVisibility(View.GONE);
+                                    btnLeaveGroupDetail.setVisibility(View.VISIBLE);
+                                });
                             } else {
                                 // 가입 실패 처리 (HTTP 오류 코드 확인)
                                 Log.e("GroupDetailActivity", "그룹 가입 실패: " + response.code());
