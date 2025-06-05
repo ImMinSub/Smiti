@@ -4,6 +4,8 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.util.Log;
 
@@ -16,6 +18,8 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ChatFileManager {
     
@@ -23,6 +27,8 @@ public class ChatFileManager {
     
     private final Context context;
     private final ContentResolver contentResolver;
+    private final ExecutorService executorService;
+    private final Handler mainHandler;
     
     public interface FileUploadCallback {
         void onFileReadSuccess(String fileName, byte[] fileBytes);
@@ -31,16 +37,19 @@ public class ChatFileManager {
         void onUploadSuccess(String message);
         void onUploadFailed(String error);
     }
-    
-    public ChatFileManager(Context context) {
+      public ChatFileManager(Context context) {
         this.context = context;
         this.contentResolver = context.getContentResolver();
+        this.executorService = Executors.newSingleThreadExecutor();
+        this.mainHandler = new Handler(Looper.getMainLooper());
     }
-    
-    /**
+      /**
      * 파일 업로드 처리
      */
     public void uploadFile(Uri fileUri, FileUploadCallback callback) {
+        // 파일 읽기 시작 알림
+        callback.onUploadProgress("파일을 읽는 중...");
+        
         try {
             String mimeType = contentResolver.getType(fileUri);
             String displayName = getFileDisplayName(fileUri);
@@ -57,29 +66,34 @@ public class ChatFileManager {
             Log.e(TAG, "파일 업로드 준비 오류: " + fileUri, e);
             callback.onFileReadFailed("파일 업로드 준비 중 오류 발생");
         }
-    }
-    
-    /**
-     * 파일을 바이트 배열로 읽기
+    }    /**
+     * 파일을 바이트 배열로 읽기 (백그라운드 스레드에서 실행)
      */
     private void readFileToBytes(Uri fileUri, String fileName, FileUploadCallback callback) {
-        try {
-            InputStream inputStream = contentResolver.openInputStream(fileUri);
-            if (inputStream == null) {
-                callback.onFileReadFailed("파일을 읽을 수 없습니다");
-                return;
+        // ExecutorService를 사용하여 백그라운드에서 파일 읽기 작업 수행
+        executorService.execute(() -> {
+            try {
+                Log.d(TAG, "백그라운드에서 파일 읽기 시작: " + fileName);
+                
+                InputStream inputStream = contentResolver.openInputStream(fileUri);
+                if (inputStream == null) {
+                    mainHandler.post(() -> callback.onFileReadFailed("파일을 읽을 수 없습니다"));
+                    return;
+                }
+                
+                byte[] fileBytes = readInputStreamToBytes(inputStream);
+                inputStream.close();
+                
+                Log.d(TAG, "파일 읽기 완료: " + fileName + " (" + fileBytes.length + " bytes)");
+                
+                // UI 스레드에서 콜백 호출
+                mainHandler.post(() -> callback.onFileReadSuccess(fileName, fileBytes));
+                
+            } catch (Exception e) {
+                Log.e(TAG, "파일 읽기 오류", e);
+                mainHandler.post(() -> callback.onFileReadFailed("파일 읽기 중 오류 발생: " + e.getMessage()));
             }
-            
-            byte[] fileBytes = readInputStreamToBytes(inputStream);
-            inputStream.close();
-            
-            Log.d(TAG, "파일 읽기 완료: " + fileName + " (" + fileBytes.length + " bytes)");
-            callback.onFileReadSuccess(fileName, fileBytes);
-            
-        } catch (Exception e) {
-            Log.e(TAG, "파일 읽기 오류", e);
-            callback.onFileReadFailed("파일 읽기 중 오류 발생");
-        }
+        });
     }
     
     /**
@@ -284,8 +298,7 @@ public class ChatFileManager {
                mimeType.startsWith("video/") ||
                mimeType.startsWith("application/");
     }
-    
-    /**
+      /**
      * 안전한 InputStream 닫기
      */
     public static void closeStream(InputStream stream) {
@@ -297,4 +310,14 @@ public class ChatFileManager {
             }
         }
     }
-} 
+    
+    /**
+     * 리소스 정리
+     */
+    public void cleanup() {
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
+            Log.d(TAG, "ExecutorService 종료됨");
+        }
+    }
+}
