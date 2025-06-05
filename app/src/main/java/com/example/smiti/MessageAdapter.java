@@ -80,7 +80,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void updateCurrentUserIdentifier(String identifier) {
         Log.d(TAG, "현재 사용자 식별자 업데이트: " + identifier);
         this.currentUserIdentifier = identifier;
-        notifyDataSetChanged(); // 데이터 변경 알림
+        updateDisplayList();
+        notifyItemRangeChanged(0, displayList.size()); // 더 효율적인 알림
     }
     
     // 로딩 인디케이터 표시/숨김
