@@ -225,15 +225,15 @@ public class ChatMessageManager {
                             Log.d(TAG, "동기화 중복 텍스트 메시지 감지: " + message.getMessage() + ", 시간차: " + timeDiff + "ms");
                             break;
                         }
-                    }
-                }
+                    }                }
             }
         }
 
         if (!isDuplicate) {
+            int position = messageAdapter.getItemCount();
             messageAdapter.addMessage(message);
             synchronized (messageList) {
-                messageAdapter.notifyDataSetChanged();
+                messageAdapter.notifyItemInserted(position);
             }
             messageRepository.saveMessage(currentGroupId, message);
             Log.d(TAG, "동기화 메시지 추가 완료: " + (isFileMessage ? "파일=" + message.getFileUrl() : "텍스트=" + message.getMessage()));
@@ -276,15 +276,15 @@ public class ChatMessageManager {
         
         return !isDuplicate;
     }
-    
-    /**
+      /**
      * 다른 사용자 메시지 처리
      */
     public boolean handleOtherUserMessage(Message message) {
         if (!isDuplicateMessageEnhanced(message)) {
+            int position = messageAdapter.getItemCount();
             messageAdapter.addMessage(message);
             synchronized (messageList) {
-                messageAdapter.notifyDataSetChanged();
+                messageAdapter.notifyItemInserted(position);
             }
             messageRepository.saveMessage(currentGroupId, message);
             
