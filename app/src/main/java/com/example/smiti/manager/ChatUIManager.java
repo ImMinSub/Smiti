@@ -35,11 +35,11 @@ import java.util.List;
  * 메모리 누수 방지와 안전한 UI 조작을 위한 방어적 프로그래밍 적용
  */
 public class ChatUIManager {
-    
+
     private static final String TAG = "ChatUIManager";
-    
+
     // Activity 약한 참조로 메모리 누수 방지
-    private final WeakReference<Activity> activityRef;    
+    private final WeakReference<Activity> activityRef;
     // UI 컴포넌트들 - WeakReference로 메모리 누수 방지
     private WeakReference<RecyclerView> recyclerViewRef;
     private WeakReference<EditText> messageEditTextRef;    private WeakReference<ImageButton> sendButtonRef;
@@ -49,20 +49,20 @@ public class ChatUIManager {
     private WeakReference<ImageButton> menuButtonRef;
     private WeakReference<BottomNavigationView> bottomNavigationViewRef;
     private WeakReference<View> rootViewRef;
-    
+
     // 사이드바 관련
     private WeakReference<DrawerLayout> drawerLayoutRef;
     private WeakReference<NavigationView> navigationViewRef;
     private WeakReference<RecyclerView> membersRecyclerViewRef;
     private MemberAdapter memberAdapter;
-    
+
     // Dialog 참조 관리 (메모리 누수 방지)
     private AlertDialog currentDialog;
-    
+
     // 초기화 상태 추적
     private volatile boolean isInitialized = false;
     private volatile boolean isDestroyed = false;
-      public interface UICallback {
+    public interface UICallback {
         void onSendButtonClick();
         void onAttachButtonClick();
         void onSummaryButtonClick();
@@ -70,14 +70,14 @@ public class ChatUIManager {
         void onMenuButtonClick();
         void onFileTypeSelected(String mimeType);
     }
-      public ChatUIManager(Activity activity) {
+    public ChatUIManager(Activity activity) {
         if (activity == null) {
             throw new IllegalArgumentException("Activity cannot be null");
         }
         this.activityRef = new WeakReference<>(activity);
         this.isDestroyed = false;
     }
-    
+
     /**
      * Activity 참조 안전하게 가져오기
      */
@@ -86,7 +86,7 @@ public class ChatUIManager {
             Log.w(TAG, "ChatUIManager has been destroyed");
             return null;
         }
-        
+
         Activity activity = activityRef.get();
         if (activity == null) {
             Log.w(TAG, "Activity reference has been garbage collected");
@@ -94,10 +94,10 @@ public class ChatUIManager {
             Log.w(TAG, "Activity is destroyed or finishing");
             return null;
         }
-        
+
         return activity;
     }
-    
+
     /**
      * 안전한 UI 작업 실행
      */
@@ -115,7 +115,7 @@ public class ChatUIManager {
             }
         }
     }
-      /**
+    /**
      * 모든 뷰 초기화 - 방어적 프로그래밍 적용
      */
     public void initViews() {
@@ -124,7 +124,7 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot initialize views: Activity is null");
             return;
         }
-        
+
         try {            // 기본 뷰들 초기화
             View rootView = activity.findViewById(android.R.id.content);
             RecyclerView recyclerView = activity.findViewById(R.id.recyclerView);
@@ -135,12 +135,12 @@ public class ChatUIManager {
             ImageButton summaryButton = activity.findViewById(R.id.summary_button);
             ImageButton timeRecommendButton = activity.findViewById(R.id.time_recommend_button);
             ImageButton menuButton = activity.findViewById(R.id.menu_button);
-            
+
             // 사이드바 관련 뷰 초기화
             DrawerLayout drawerLayout = activity.findViewById(R.id.drawer_layout);
             NavigationView navigationView = activity.findViewById(R.id.nav_view);
             RecyclerView membersRecyclerView = activity.findViewById(R.id.members_recycler_view);
-            
+
             // WeakReference로 저장
             this.rootViewRef = new WeakReference<>(rootView);
             this.recyclerViewRef = new WeakReference<>(recyclerView);
@@ -153,35 +153,35 @@ public class ChatUIManager {
             this.drawerLayoutRef = new WeakReference<>(drawerLayout);
             this.navigationViewRef = new WeakReference<>(navigationView);
             this.membersRecyclerViewRef = new WeakReference<>(membersRecyclerView);
-            
+
             // 필수 뷰 존재 여부 검증
             validateEssentialViews();
-            
+
             isInitialized = true;
             Log.d(TAG, "Views initialized successfully");
-            
+
         } catch (Exception e) {
             Log.e(TAG, "Error initializing views", e);
             isInitialized = false;
         }
     }
-    
+
     /**
      * 필수 뷰들의 존재 여부 검증
      */
     private void validateEssentialViews() {
         List<String> missingViews = new ArrayList<>();
-        
+
         if (getRecyclerView() == null) missingViews.add("RecyclerView");
         if (getMessageEditText() == null) missingViews.add("MessageEditText");
         if (getSendButton() == null) missingViews.add("SendButton");
         if (getBottomNavigationView() == null) missingViews.add("BottomNavigationView");
-        
+
         if (!missingViews.isEmpty()) {
             Log.w(TAG, "Missing essential views: " + missingViews);
         }
     }
-      /**
+    /**
      * 리사이클러뷰 설정 - 안전성 개선
      */
     public void setupRecyclerView(MessageAdapter messageAdapter) {
@@ -189,24 +189,24 @@ public class ChatUIManager {
             Log.e(TAG, "Views not initialized yet. Call initViews() first.");
             return;
         }
-        
+
         if (messageAdapter == null) {
             Log.e(TAG, "MessageAdapter cannot be null");
             return;
         }
-        
+
         RecyclerView recyclerView = getRecyclerView();
         if (recyclerView == null) {
             Log.e(TAG, "RecyclerView is null, cannot setup");
             return;
         }
-        
+
         Activity activity = getActivity();
         if (activity == null) {
             Log.e(TAG, "Activity is null, cannot setup RecyclerView");
             return;
         }
-        
+
         try {
             LinearLayoutManager layoutManager = new LinearLayoutManager(activity);
             recyclerView.setLayoutManager(layoutManager);
@@ -216,7 +216,7 @@ public class ChatUIManager {
             Log.e(TAG, "Error setting up RecyclerView", e);
         }
     }
-    
+
     /**
      * 멤버 리사이클러뷰 설정 - 안전성 개선
      */
@@ -225,34 +225,34 @@ public class ChatUIManager {
             Log.e(TAG, "Views not initialized yet. Call initViews() first.");
             return;
         }
-        
+
         RecyclerView membersRecyclerView = getMembersRecyclerView();
         if (membersRecyclerView == null) {
             Log.w(TAG, "Members RecyclerView is null, skipping setup");
             return;
         }
-        
+
         Activity activity = getActivity();
         if (activity == null) {
             Log.e(TAG, "Activity is null, cannot setup Members RecyclerView");
             return;
         }
-        
+
         try {
             // memberList가 null이면 빈 리스트 사용
             List<User> safeList = memberList != null ? memberList : new ArrayList<>();
-            
+
             memberAdapter = new MemberAdapter(safeList);
             LinearLayoutManager layoutManager = new LinearLayoutManager(activity);
             membersRecyclerView.setLayoutManager(layoutManager);
             membersRecyclerView.setAdapter(memberAdapter);
-            
+
             Log.d(TAG, "Members RecyclerView setup completed with " + safeList.size() + " members");
         } catch (Exception e) {
             Log.e(TAG, "Error setting up Members RecyclerView", e);
         }
     }
-      /**
+    /**
      * 버튼 리스너 설정 - 안전성 개선
      */
     public void setupListeners(UICallback callback) {
@@ -260,12 +260,12 @@ public class ChatUIManager {
             Log.e(TAG, "Views not initialized yet. Call initViews() first.");
             return;
         }
-        
+
         if (callback == null) {
             Log.e(TAG, "UICallback cannot be null");
             return;
         }
-        
+
         try {
             ImageButton sendButton = getSendButton();
             if (sendButton != null) {
@@ -275,7 +275,7 @@ public class ChatUIManager {
                     }
                 });
             }
-            
+
             ImageButton attachButton = getAttachButton();
             if (attachButton != null) {
                 attachButton.setOnClickListener(v -> {
@@ -284,7 +284,7 @@ public class ChatUIManager {
                     }
                 });
             }
-              ImageButton summaryButton = getSummaryButton();
+            ImageButton summaryButton = getSummaryButton();
             if (summaryButton != null) {
                 summaryButton.setOnClickListener(v -> {
                     if (getActivity() != null && !isDestroyed) {
@@ -292,7 +292,7 @@ public class ChatUIManager {
                     }
                 });
             }
-            
+
             ImageButton timeRecommendButton = getTimeRecommendButton();
             if (timeRecommendButton != null) {
                 timeRecommendButton.setOnClickListener(v -> {
@@ -301,7 +301,7 @@ public class ChatUIManager {
                     }
                 });
             }
-            
+
             ImageButton menuButton = getMenuButton();
             if (menuButton != null) {
                 menuButton.setOnClickListener(v -> {
@@ -310,13 +310,13 @@ public class ChatUIManager {
                     }
                 });
             }
-            
+
             Log.d(TAG, "Button listeners setup completed");
         } catch (Exception e) {
             Log.e(TAG, "Error setting up button listeners", e);
         }
     }
-    
+
     /**
      * 하단 네비게이션 설정 - 안전성 개선
      */
@@ -325,13 +325,13 @@ public class ChatUIManager {
             Log.e(TAG, "Views not initialized yet. Call initViews() first.");
             return;
         }
-        
+
         BottomNavigationView bottomNavigationView = getBottomNavigationView();
         if (bottomNavigationView == null) {
             Log.e(TAG, "BottomNavigationView is null, cannot setup");
             return;
         }
-        
+
         try {
             bottomNavigationView.setSelectedItemId(R.id.navigation_chat);
             bottomNavigationView.setOnNavigationItemSelectedListener(item -> {
@@ -340,10 +340,10 @@ public class ChatUIManager {
                     Log.w(TAG, "Activity is null or destroyed, ignoring navigation");
                     return false;
                 }
-                
+
                 int id = item.getItemId();
                 Intent intent = null;
-                
+
                 if (id == R.id.navigation_home) {
                     intent = new Intent(activity, MainActivity.class);
                 } else if (id == R.id.navigation_search) {
@@ -355,7 +355,7 @@ public class ChatUIManager {
                 } else if (id == R.id.navigation_profile) {
                     intent = new Intent(activity, ProfileActivity.class);
                 }
-                
+
                 if (intent != null) {
                     try {
                         activity.startActivity(intent);
@@ -366,16 +366,16 @@ public class ChatUIManager {
                         showToast("화면 전환 중 오류가 발생했습니다");
                     }
                 }
-                
+
                 return false;
             });
-            
+
             Log.d(TAG, "Bottom navigation setup completed");
         } catch (Exception e) {
             Log.e(TAG, "Error setting up bottom navigation", e);
         }
     }
-      /**
+    /**
      * 파일 타입 선택 다이얼로그 표시 - 안전성 개선
      */
     public void showFileTypeSelectionDialog(UICallback callback) {
@@ -384,13 +384,13 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot show file type dialog: Activity or callback is null");
             return;
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         try {
             final CharSequence[] items = {"이미지", "PDF 문서", "모든 파일"};
-            
+
             AlertDialog.Builder builder = new AlertDialog.Builder(activity);
             builder.setTitle("업로드할 파일 유형 선택");
             builder.setItems(items, (dialog, which) -> {
@@ -408,18 +408,18 @@ public class ChatUIManager {
                     }
                 }
             });
-            
+
             builder.setOnDismissListener(dialog -> currentDialog = null);
-            
+
             currentDialog = builder.create();
             currentDialog.show();
-            
+
         } catch (Exception e) {
             Log.e(TAG, "Error showing file type dialog", e);
             showToast("파일 선택 창을 열 수 없습니다");
         }
     }
-      /**
+    /**
      * 요약 결과 다이얼로그 표시 - 안전성 개선
      */
     public void showSummaryDialog(String summary) {
@@ -428,16 +428,16 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot show summary dialog: Activity is null");
             return;
         }
-        
+
         if (summary == null || summary.trim().isEmpty()) {
             Log.w(TAG, "Summary is empty");
             showToast("요약 내용이 없습니다");
             return;
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         runSafely(() -> {
             try {
                 AlertDialog.Builder builder = new AlertDialog.Builder(activity);
@@ -445,17 +445,17 @@ public class ChatUIManager {
                 builder.setMessage(summary.trim());
                 builder.setPositiveButton("확인", null);
                 builder.setOnDismissListener(dialog -> currentDialog = null);
-                
+
                 currentDialog = builder.create();
                 currentDialog.show();
-                
+
             } catch (Exception e) {
                 Log.e(TAG, "Error showing summary dialog", e);
                 showToast("요약 창을 열 수 없습니다");
             }
         });
     }
-    
+
     /**
      * 시간 추천 다이얼로그 표시 - 안전성 개선
      */
@@ -465,28 +465,28 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot show time recommendation dialog: Activity is null");
             return;
         }
-        
+
         if (recommendation == null || recommendation.trim().isEmpty()) {
             Log.w(TAG, "Time recommendation is empty");
             showToast("추천 시간 내용이 없습니다");
             return;
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-          runSafely(() -> {
+        runSafely(() -> {
             try {
                 // 커스텀 다이얼로그 레이아웃 인플레이트
                 View dialogView = activity.getLayoutInflater().inflate(R.layout.dialog_time_recommendation, null);
-                
+
                 // 추천 내용을 3개 섹션으로 분할
                 String[] sections = parseRecommendationSections(recommendation.trim());
-                
+
                 // 각 섹션별 TextView에 내용 설정
                 android.widget.TextView tvAvailableTimes = dialogView.findViewById(R.id.tv_available_times);
                 android.widget.TextView tvGroupRecommended = dialogView.findViewById(R.id.tv_group_recommended_times);
                 android.widget.TextView tvFinalRecommendation = dialogView.findViewById(R.id.tv_final_recommendation);
-                
+
                 if (tvAvailableTimes != null) {
                     tvAvailableTimes.setText(sections[0]);
                 }
@@ -496,12 +496,12 @@ public class ChatUIManager {
                 if (tvFinalRecommendation != null) {
                     tvFinalRecommendation.setText(sections[2]);
                 }
-                
+
                 // 다이얼로그 생성
                 AlertDialog.Builder builder = new AlertDialog.Builder(activity);
                 builder.setView(dialogView);
                 builder.setCancelable(true);
-                
+
                 // 확인 버튼 처리
                 android.widget.Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
                 if (btnConfirm != null) {
@@ -511,30 +511,30 @@ public class ChatUIManager {
                         }
                     });
                 }
-                
+
                 builder.setOnDismissListener(dialog -> currentDialog = null);
-                
+
                 currentDialog = builder.create();
                 // 다이얼로그 배경을 투명하게 설정하여 둥근 모서리가 보이도록 함
                 if (currentDialog.getWindow() != null) {
                     currentDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
                 }
                 currentDialog.show();
-                
+
             } catch (Exception e) {
                 Log.e(TAG, "Error showing time recommendation dialog", e);
                 showToast("시간 추천 창을 열 수 없습니다");
             }
         });
     }
-      /**
+    /**
      * 간단한 메시지 표시 - 안전성 개선
      */
     public void showToast(String message) {
         if (message == null || message.trim().isEmpty()) {
             return;
         }
-        
+
         runSafely(() -> {
             try {
                 Activity activity = getActivity();
@@ -546,7 +546,7 @@ public class ChatUIManager {
             }
         });
     }
-    
+
     /**
      * 긴 메시지 표시 - 안전성 개선
      */
@@ -554,7 +554,7 @@ public class ChatUIManager {
         if (message == null || message.trim().isEmpty()) {
             return;
         }
-        
+
         runSafely(() -> {
             try {
                 Activity activity = getActivity();
@@ -566,19 +566,19 @@ public class ChatUIManager {
             }
         });
     }
-    
+
     /**
      * 드로어 열기/닫기 - 안전성 개선
      */
     public void toggleDrawer() {
         DrawerLayout drawerLayout = getDrawerLayout();
         NavigationView navigationView = getNavigationView();
-        
+
         if (drawerLayout == null || navigationView == null) {
             Log.w(TAG, "Drawer components are null, cannot toggle");
             return;
         }
-        
+
         try {
             if (drawerLayout.isDrawerOpen(navigationView)) {
                 drawerLayout.closeDrawer(navigationView);
@@ -589,18 +589,18 @@ public class ChatUIManager {
             Log.e(TAG, "Error toggling drawer", e);
         }
     }
-    
+
     /**
      * 드로어가 열려있는지 확인 - 안전성 개선
      */
     public boolean isDrawerOpen() {
         DrawerLayout drawerLayout = getDrawerLayout();
         NavigationView navigationView = getNavigationView();
-        
+
         if (drawerLayout == null || navigationView == null) {
             return false;
         }
-        
+
         try {
             return drawerLayout.isDrawerOpen(navigationView);
         } catch (Exception e) {
@@ -608,26 +608,26 @@ public class ChatUIManager {
             return false;
         }
     }
-    
+
     /**
      * 드로어 닫기 - 안전성 개선
      */
     public void closeDrawer() {
         DrawerLayout drawerLayout = getDrawerLayout();
         NavigationView navigationView = getNavigationView();
-        
+
         if (drawerLayout == null || navigationView == null) {
             Log.w(TAG, "Drawer components are null, cannot close");
             return;
         }
-        
+
         try {
             drawerLayout.closeDrawer(navigationView);
         } catch (Exception e) {
             Log.e(TAG, "Error closing drawer", e);
         }
     }
-      /**
+    /**
      * 메시지 입력란 텍스트 가져오기 - 안전성 개선
      */
     public String getMessageText() {
@@ -636,7 +636,7 @@ public class ChatUIManager {
             Log.w(TAG, "MessageEditText is null");
             return "";
         }
-        
+
         try {
             String text = messageEditText.getText().toString();
             return text != null ? text.trim() : "";
@@ -645,7 +645,7 @@ public class ChatUIManager {
             return "";
         }
     }
-    
+
     /**
      * 메시지 입력란 비우기 - 안전성 개선
      */
@@ -655,7 +655,7 @@ public class ChatUIManager {
             Log.w(TAG, "MessageEditText is null, cannot clear");
             return;
         }
-        
+
         runSafely(() -> {
             try {
                 messageEditText.setText("");
@@ -664,7 +664,7 @@ public class ChatUIManager {
             }
         });
     }
-    
+
     /**
      * 메시지 입력란에 포커스 설정 - 안전성 개선
      */
@@ -674,7 +674,7 @@ public class ChatUIManager {
             Log.w(TAG, "MessageEditText is null, cannot focus");
             return;
         }
-        
+
         runSafely(() -> {
             try {
                 messageEditText.requestFocus();
@@ -682,68 +682,82 @@ public class ChatUIManager {
                 Log.e(TAG, "Error focusing message text", e);
             }
         });
-    }      /**
-     * 리사이클러뷰 맨 아래로 스크롤 - 안전성 개선
+    }    /**
+     * 리사이클러뷰 맨 아래로 스크롤 - 안전성 개선 및 정확한 위치 사용
      */
     public void scrollToBottom(int messageCount) {
-        if (messageCount <= 0) {
-            return;
-        }
-        
         RecyclerView recyclerView = getRecyclerView();
         if (recyclerView == null) {
             Log.w(TAG, "RecyclerView is null, cannot scroll");
             return;
         }
-        
+
         runSafely(() -> {
             try {
-                // 즉시 스크롤을 시도하고, 필요시 지연 후 재시도
-                recyclerView.smoothScrollToPosition(messageCount - 1);
+                // 어댑터의 실제 아이템 수 사용
+                int actualItemCount = recyclerView.getAdapter() != null ? 
+                    recyclerView.getAdapter().getItemCount() : messageCount;
                 
+                if (actualItemCount <= 0) {
+                    return;
+                }
+                
+                // 즉시 스크롤을 시도하고, 필요시 지연 후 재시도
+                recyclerView.smoothScrollToPosition(actualItemCount - 1);
+
                 // 레이아웃이 완료되지 않았을 경우를 대비하여 지연 후 재시도
                 recyclerView.post(() -> {
-                    if (getRecyclerView() != null && messageCount > 0 && !isDestroyed) {
-                        recyclerView.smoothScrollToPosition(messageCount - 1);
+                    if (getRecyclerView() != null && actualItemCount > 0 && !isDestroyed) {
+                        recyclerView.smoothScrollToPosition(actualItemCount - 1);
                     }
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error scrolling to bottom", e);
             }
         });
-    }
-    
-    /**
-     * 강제로 맨 아래로 스크롤 (지연 처리 포함) - 안전성 개선
+    }    /**
+     * 강제로 맨 아래로 스크롤 (개선된 지연 처리 및 부드러운 애니메이션) - 정확한 위치 사용
      */
     public void forceScrollToBottom(int messageCount) {
-        if (messageCount <= 0) {
-            return;
-        }
-        
         RecyclerView recyclerView = getRecyclerView();
         if (recyclerView == null) {
             Log.w(TAG, "RecyclerView is null, cannot force scroll");
             return;
         }
-        
+
         runSafely(() -> {
             try {
-                // 즉시 스크롤
-                recyclerView.scrollToPosition(messageCount - 1);
+                // 어댑터의 실제 아이템 수 사용
+                int actualItemCount = recyclerView.getAdapter() != null ? 
+                    recyclerView.getAdapter().getItemCount() : messageCount;
                 
-                // 100ms 후 부드러운 스크롤로 재시도
+                if (actualItemCount <= 0) {
+                    return;
+                }
+                
+                // 즉시 스크롤
+                recyclerView.scrollToPosition(actualItemCount - 1);
+
+                // 200ms 후 첫 번째 부드러운 스크롤
                 recyclerView.postDelayed(() -> {
-                    if (getRecyclerView() != null && messageCount > 0 && !isDestroyed) {
-                        recyclerView.smoothScrollToPosition(messageCount - 1);
+                    if (getRecyclerView() != null && actualItemCount > 0 && !isDestroyed) {
+                        recyclerView.smoothScrollToPosition(actualItemCount - 1);
                     }
-                }, 100);
+                }, 200);
+
+                // 500ms 후 두 번째 부드러운 스크롤 (더 확실한 보장)
+                recyclerView.postDelayed(() -> {
+                    if (getRecyclerView() != null && actualItemCount > 0 && !isDestroyed) {
+                        recyclerView.smoothScrollToPosition(actualItemCount - 1);
+                        Log.d(TAG, "최종 스크롤 완료: position " + (actualItemCount - 1));
+                    }
+                }, 500);
             } catch (Exception e) {
                 Log.e(TAG, "Error force scrolling to bottom", e);
             }
         });
     }
-    
+
     /**
      * 리사이클러뷰 특정 위치로 스크롤 - 안전성 개선
      */
@@ -751,13 +765,13 @@ public class ChatUIManager {
         if (position < 0) {
             return;
         }
-        
+
         RecyclerView recyclerView = getRecyclerView();
         if (recyclerView == null) {
             Log.w(TAG, "RecyclerView is null, cannot scroll to position");
             return;
         }
-        
+
         runSafely(() -> {
             try {
                 recyclerView.scrollToPosition(position);
@@ -765,55 +779,60 @@ public class ChatUIManager {
                 Log.e(TAG, "Error scrolling to position: " + position, e);
             }
         });
-    }
-      /**
-     * 사용자가 현재 최신 메시지 근처에 있는지 확인 - 안전성 개선
-     * @param messageCount 총 메시지 개수
+    }    /**
+     * 사용자가 현재 최신 메시지 근처에 있는지 확인 - 안전성 개선 및 정확한 위치 사용
+     * @param messageCount 총 메시지 개수 (참고용, 실제로는 어댑터 아이템 수 사용)
      * @return 최신 메시지 근처에 있으면 true, 그렇지 않으면 false
      */
     public boolean isNearBottom(int messageCount) {
-        if (messageCount <= 0) {
-            return false;
-        }
-        
         RecyclerView recyclerView = getRecyclerView();
         if (recyclerView == null) {
             return false;
         }
-        
+
         try {
-            androidx.recyclerview.widget.LinearLayoutManager layoutManager = 
-                (androidx.recyclerview.widget.LinearLayoutManager) recyclerView.getLayoutManager();
-            
+            androidx.recyclerview.widget.LinearLayoutManager layoutManager =
+                    (androidx.recyclerview.widget.LinearLayoutManager) recyclerView.getLayoutManager();
+
             if (layoutManager == null) {
                 return false;
             }
-            
+
             int lastVisiblePosition = layoutManager.findLastVisibleItemPosition();
-            int totalItems = layoutManager.getItemCount();
-            
+            // 어댑터의 실제 아이템 수 사용
+            int totalItems = recyclerView.getAdapter() != null ? 
+                recyclerView.getAdapter().getItemCount() : messageCount;
+
+            if (totalItems <= 0) {
+                return false;
+            }
+
             // 마지막 5개 메시지 범위 내에 있으면 최신 메시지 근처로 판단
             return lastVisiblePosition >= totalItems - 5;
         } catch (Exception e) {
             Log.e(TAG, "Error checking if near bottom", e);
             return false;
         }
-    }
-    
-    /**
-     * 조건부 스크롤 - 사용자가 최신 메시지 근처에 있을 때만 스크롤
-     * @param messageCount 총 메시지 개수
+    }    /**
+     * 조건부 스크롤 - 사용자가 최신 메시지 근처에 있을 때만 스크롤 - 정확한 위치 사용
+     * @param messageCount 총 메시지 개수 (참고용, 실제로는 어댑터 아이템 수 사용)
      */
     public void scrollToBottomIfNearBottom(int messageCount) {
         try {
             if (isNearBottom(messageCount)) {
-                forceScrollToBottom(messageCount);
+                RecyclerView recyclerView = getRecyclerView();
+                if (recyclerView != null && recyclerView.getAdapter() != null) {
+                    int actualItemCount = recyclerView.getAdapter().getItemCount();
+                    forceScrollToBottom(actualItemCount);
+                } else {
+                    forceScrollToBottom(messageCount);
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in conditional scroll", e);
         }
     }
-    
+
     /**
      * 멤버 어댑터 업데이트 - 안전성 개선
      */
@@ -822,7 +841,7 @@ public class ChatUIManager {
             Log.w(TAG, "Member adapter is null, cannot update");
             return;
         }
-        
+
         try {
             // memberList가 null이면 빈 리스트 사용
             List<User> safeList = memberList != null ? memberList : new ArrayList<>();
@@ -832,7 +851,7 @@ public class ChatUIManager {
             Log.e(TAG, "Error updating member adapter", e);
         }
     }
-      /**
+    /**
      * 오류 다이얼로그 표시 - 안전성 개선
      */
     public void showErrorDialog(String title, String message) {
@@ -841,18 +860,18 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot show error dialog: Activity is null");
             return;
         }
-        
+
         if (title == null) title = "오류";
         if (message == null || message.trim().isEmpty()) {
             message = "알 수 없는 오류가 발생했습니다";
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         final String finalTitle = title;
         final String finalMessage = message.trim();
-        
+
         runSafely(() -> {
             try {
                 AlertDialog.Builder builder = new AlertDialog.Builder(activity);
@@ -860,39 +879,39 @@ public class ChatUIManager {
                 builder.setMessage(finalMessage);
                 builder.setPositiveButton("확인", null);
                 builder.setOnDismissListener(dialog -> currentDialog = null);
-                
+
                 currentDialog = builder.create();
                 currentDialog.show();
-                
+
             } catch (Exception e) {
                 Log.e(TAG, "Error showing error dialog", e);
             }
         });
     }
-    
+
     /**
      * 확인 다이얼로그 표시 - 안전성 개선
      */
-    public void showConfirmDialog(String title, String message, 
-                                Runnable onConfirm, Runnable onCancel) {
+    public void showConfirmDialog(String title, String message,
+                                  Runnable onConfirm, Runnable onCancel) {
         Activity activity = getActivity();
         if (activity == null) {
             Log.e(TAG, "Cannot show confirm dialog: Activity is null");
             return;
         }
-        
+
         if (title == null) title = "확인";
         if (message == null || message.trim().isEmpty()) {
             Log.w(TAG, "Confirm dialog message is empty");
             return;
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         final String finalTitle = title;
         final String finalMessage = message.trim();
-        
+
         runSafely(() -> {
             try {
                 AlertDialog.Builder builder = new AlertDialog.Builder(activity);
@@ -917,16 +936,16 @@ public class ChatUIManager {
                     }
                 });
                 builder.setOnDismissListener(dialog -> currentDialog = null);
-                
+
                 currentDialog = builder.create();
                 currentDialog.show();
-                
+
             } catch (Exception e) {
                 Log.e(TAG, "Error showing confirm dialog", e);
             }
         });
     }
-    
+
     /**
      * 로딩 다이얼로그 표시 - 안전성 개선
      */
@@ -936,33 +955,33 @@ public class ChatUIManager {
             Log.e(TAG, "Cannot show loading dialog: Activity is null");
             return null;
         }
-        
+
         if (message == null || message.trim().isEmpty()) {
             message = "처리 중...";
         }
-        
+
         // 기존 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         final String finalMessage = message.trim();
-        
+
         try {
             AlertDialog.Builder builder = new AlertDialog.Builder(activity);
             builder.setMessage(finalMessage);
             builder.setCancelable(false);
             builder.setOnDismissListener(dialog -> currentDialog = null);
-            
+
             currentDialog = builder.create();
             currentDialog.show();
-            
+
             return currentDialog;
-            
+
         } catch (Exception e) {
             Log.e(TAG, "Error showing loading dialog", e);
             return null;
         }
     }
-    
+
     /**
      * 현재 다이얼로그 닫기
      */
@@ -978,13 +997,13 @@ public class ChatUIManager {
         }
     }      /**
      * View 접근자들 - 안전성 개선
-     */    
+     */
     public RecyclerView getRecyclerView() {
         if (recyclerViewRef == null) {
             Log.e(TAG, "RecyclerView reference is null! initViews() must be called first");
             return null;
         }
-        
+
         RecyclerView recyclerView = recyclerViewRef.get();
         if (recyclerView == null) {
             Log.e(TAG, "RecyclerView has been garbage collected!");
@@ -992,131 +1011,131 @@ public class ChatUIManager {
         }
         return recyclerView;
     }
-    
+
     public EditText getMessageEditText() {
         return messageEditTextRef != null ? messageEditTextRef.get() : null;
     }
-    
+
     public ImageButton getSendButton() {
         return sendButtonRef != null ? sendButtonRef.get() : null;
     }
-    
+
     public ImageButton getAttachButton() {
         return attachButtonRef != null ? attachButtonRef.get() : null;
     }
-      public ImageButton getSummaryButton() {
+    public ImageButton getSummaryButton() {
         return summaryButtonRef != null ? summaryButtonRef.get() : null;
     }
-    
+
     public ImageButton getTimeRecommendButton() {
         return timeRecommendButtonRef != null ? timeRecommendButtonRef.get() : null;
     }
-    
+
     public ImageButton getMenuButton() {
         return menuButtonRef != null ? menuButtonRef.get() : null;
     }
-    
+
     public BottomNavigationView getBottomNavigationView() {
         return bottomNavigationViewRef != null ? bottomNavigationViewRef.get() : null;
     }
-    
+
     public DrawerLayout getDrawerLayout() {
         return drawerLayoutRef != null ? drawerLayoutRef.get() : null;
     }
-    
+
     public NavigationView getNavigationView() {
         return navigationViewRef != null ? navigationViewRef.get() : null;
     }
-    
+
     public RecyclerView getMembersRecyclerView() {
         return membersRecyclerViewRef != null ? membersRecyclerViewRef.get() : null;
     }
-    
+
     public View getRootView() {
         return rootViewRef != null ? rootViewRef.get() : null;
     }
-    
+
     /**
      * 초기화 상태 확인
      */
     public boolean isInitialized() {
         return isInitialized && !isDestroyed;
     }
-    
+
     /**
      * 리소스 정리 및 메모리 누수 방지
      */
     public void cleanup() {
         Log.d(TAG, "Cleaning up ChatUIManager resources");
-        
+
         isDestroyed = true;
         isInitialized = false;
-        
+
         // 다이얼로그 정리
         dismissCurrentDialog();
-        
+
         // WeakReference들 정리
         if (recyclerViewRef != null) {
             recyclerViewRef.clear();
             recyclerViewRef = null;
         }
-        
+
         if (messageEditTextRef != null) {
             messageEditTextRef.clear();
             messageEditTextRef = null;
         }
-        
+
         if (sendButtonRef != null) {
             sendButtonRef.clear();
             sendButtonRef = null;
         }
-        
+
         if (attachButtonRef != null) {
             attachButtonRef.clear();
             attachButtonRef = null;
         }
-          if (summaryButtonRef != null) {
+        if (summaryButtonRef != null) {
             summaryButtonRef.clear();
             summaryButtonRef = null;
         }
-        
+
         if (timeRecommendButtonRef != null) {
             timeRecommendButtonRef.clear();
             timeRecommendButtonRef = null;
         }
-        
+
         if (menuButtonRef != null) {
             menuButtonRef.clear();
             menuButtonRef = null;
         }
-        
+
         if (bottomNavigationViewRef != null) {
             bottomNavigationViewRef.clear();
             bottomNavigationViewRef = null;
         }
-        
+
         if (rootViewRef != null) {
             rootViewRef.clear();
             rootViewRef = null;
         }
-        
+
         if (drawerLayoutRef != null) {
             drawerLayoutRef.clear();
             drawerLayoutRef = null;
         }
-        
+
         if (navigationViewRef != null) {
             navigationViewRef.clear();
             navigationViewRef = null;
         }
-        
+
         if (membersRecyclerViewRef != null) {
             membersRecyclerViewRef.clear();
             membersRecyclerViewRef = null;
         }
-          // 어댑터 정리
+        // 어댑터 정리
         memberAdapter = null;
-        
+
         Log.d(TAG, "ChatUIManager cleanup completed");
     }
 
@@ -1128,24 +1147,24 @@ public class ChatUIManager {
         sections[0] = "정보 없음";
         sections[1] = "정보 없음";
         sections[2] = "정보 없음";
-        
+
         if (recommendation == null || recommendation.trim().isEmpty()) {
             return sections;
         }
-        
+
         try {
             // 추천 내용을 줄바꿈으로 분할
             String[] lines = recommendation.split("\n");
             StringBuilder section1 = new StringBuilder();
             StringBuilder section2 = new StringBuilder();
             StringBuilder section3 = new StringBuilder();
-            
+
             int currentSection = 0;
-            
+
             for (String line : lines) {
                 String trimmedLine = line.trim();
                 if (trimmedLine.isEmpty()) continue;
-                
+
                 // 섹션 구분 기준
                 if (trimmedLine.contains("1.") || trimmedLine.contains("스터디 가능 시간대")) {
                     currentSection = 1;
@@ -1157,7 +1176,7 @@ public class ChatUIManager {
                     currentSection = 3;
                     continue;
                 }
-                
+
                 // 각 섹션에 내용 추가
                 switch (currentSection) {
                     case 1:
@@ -1174,7 +1193,7 @@ public class ChatUIManager {
                         break;
                 }
             }
-            
+
             // 섹션별 내용 설정
             if (section1.length() > 0) {
                 sections[0] = section1.toString();
@@ -1185,12 +1204,12 @@ public class ChatUIManager {
             if (section3.length() > 0) {
                 sections[2] = section3.toString();
             }
-            
+
         } catch (Exception e) {
             Log.e(TAG, "Error parsing recommendation sections", e);
             sections[0] = recommendation; // 파싱 실패시 전체 내용을 첫 번째 섹션에 표시
         }
-        
+
         return sections;
     }
 }
