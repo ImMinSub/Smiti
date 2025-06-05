@@ -50,29 +50,61 @@
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
-                <!-- 시간 추천 버튼 -->
-                <ImageButton
-                    android:id="@+id/time_recommend_button"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                <!-- 시간 추천 버튼 그룹 -->
+                <LinearLayout
+                    android:id="@+id/time_recommend_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
                     android:layout_marginEnd="16dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="시간 추천"
-                    android:src="@drawable/ic_calendar" />
+                    android:orientation="vertical"
+                    android:gravity="center">
 
-                <!-- 요약 버튼 -->
-                <ImageButton
-                    android:id="@+id/summary_button"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_toStartOf="@id/time_recommend_button"
+                    <ImageButton
+                        android:id="@+id/time_recommend_button"
+                        android:layout_width="48dp"
+                        android:layout_height="36dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="시간 추천"
+                        android:src="@drawable/ic_calendar" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="시간 추천"
+                        android:textSize="8sp"
+                        android:textColor="#666666"
+                        android:gravity="center" />
+                </LinearLayout>
+
+                <!-- 요약 버튼 그룹 -->
+                <LinearLayout
+                    android:id="@+id/summary_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@id/time_recommend_layout"
                     android:layout_centerVertical="true"
                     android:layout_marginEnd="8dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="채팅 요약"
-                    android:src="@drawable/ic_summary" />
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageButton
+                        android:id="@+id/summary_button"
+                        android:layout_width="48dp"
+                        android:layout_height="36dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="채팅 요약"
+                        android:src="@drawable/ic_summary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="요약"
+                        android:textSize="8sp"
+                        android:textColor="#666666"
+                        android:gravity="center" />
+                </LinearLayout>
             </RelativeLayout>
         </androidx.appcompat.widget.Toolbar>
 
