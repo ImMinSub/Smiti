@@ -34,21 +34,21 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class ChatNetworkManager {
-      private static final String TAG = "ChatNetworkManager";
+    private static final String TAG = "ChatNetworkManager";
     private static final String BASE_URL = "http://202.31.246.51:80";
     private static final long EXTENDED_TIMEOUT = 90000; // 90초
     private static final long BASE_SYNC_INTERVAL = 60000; // 기본 60초 (30초에서 증가)
     private static final long MAX_SYNC_INTERVAL = 300000; // 최대 5분
     private static final long MIN_SYNC_INTERVAL = 30000; // 최소 30초
     private static final String FIRST_TIME_PREF = "first_time_group_access";
-    
+
     private final Context context;
     private final MessageRepository messageRepository;
     private final String currentGroupId;
-    
+
     private BroadcastReceiver networkReceiver;
     private boolean wasOffline = false;
-    
+
     // 지능형 동기화 시스템
     private Handler syncHandler;
     private Runnable syncRunnable;
@@ -57,10 +57,10 @@ public class ChatNetworkManager {
     private long lastActivityTime = 0;
     private boolean isSyncInProgress = false;
     private int consecutiveEmptySync = 0;
-    
+
     // 첫 접속 관리
     private boolean isFirstTimeAccess = false;
-      public interface NetworkCallback {
+    public interface NetworkCallback {
         void onNetworkConnected();
         void onNetworkDisconnected();
         void onSyncCompleted(List<Message> newMessages);
@@ -72,23 +72,23 @@ public class ChatNetworkManager {
         void onMembersLoaded(List<Object> members); // User 객체 대신 Object 사용
         void onMembersLoadFailed(String error);
     }
-    
+
     private NetworkCallback networkCallback;
-      public ChatNetworkManager(Context context, MessageRepository messageRepository, 
-                             String currentGroupId) {
+    public ChatNetworkManager(Context context, MessageRepository messageRepository,
+                              String currentGroupId) {
         this.context = context;
         this.messageRepository = messageRepository;
         this.currentGroupId = currentGroupId;
-        
+
         // 해당 그룹에 처음 접속하는지 확인
         this.isFirstTimeAccess = checkIfFirstTimeAccess(currentGroupId);
         Log.d(TAG, "그룹 " + currentGroupId + " 첫 접속 여부: " + isFirstTimeAccess);
     }
-    
+
     public void setNetworkCallback(NetworkCallback callback) {
         this.networkCallback = callback;
     }
-    
+
     /**
      * 네트워크 상태 감지 설정
      */
@@ -98,26 +98,26 @@ public class ChatNetworkManager {
             public void onReceive(Context context, Intent intent) {
                 if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
                     boolean isConnected = isNetworkConnected();
-                    
+
                     if (isConnected && wasOffline) {
                         // 오프라인에서 온라인으로 전환
                         Log.d(TAG, "네트워크 연결 복구됨 - 메시지 동기화 시작");
                         wasOffline = false;
-                        
+
                         if (networkCallback != null) {
                             networkCallback.onNetworkConnected();
                         }
-                        
+
                         // 네트워크 안정화를 위해 잠시 대기 후 동기화
                         new Handler(Looper.getMainLooper()).postDelayed(() -> {
                             performFullMessageSync();
                         }, 3000); // 3초 대기
-                        
+
                     } else if (!isConnected) {
                         // 온라인에서 오프라인으로 전환
                         Log.d(TAG, "네트워크 연결 끊어짐");
                         wasOffline = true;
-                        
+
                         if (networkCallback != null) {
                             networkCallback.onNetworkDisconnected();
                         }
@@ -125,18 +125,18 @@ public class ChatNetworkManager {
                 }
             }
         };
-        
+
         IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
         context.registerReceiver(networkReceiver, filter);
-        
+
         // 초기 네트워크 상태 확인
         wasOffline = !isNetworkConnected();
     }
-      /**
+    /**
      * 네트워크 연결 상태 확인
      */
     public boolean isNetworkConnected() {
-        ConnectivityManager connectivityManager = 
+        ConnectivityManager connectivityManager =
                 (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (connectivityManager != null) {
             NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
@@ -144,7 +144,7 @@ public class ChatNetworkManager {
         }
         return false;
     }
-    
+
     /**
      * 해당 그룹에 처음 접속하는지 확인
      */
@@ -152,7 +152,7 @@ public class ChatNetworkManager {
         SharedPreferences prefs = context.getSharedPreferences(FIRST_TIME_PREF, Context.MODE_PRIVATE);
         return !prefs.getBoolean("visited_group_" + groupId, false);
     }
-    
+
     /**
      * 그룹 첫 접속 상태를 기록
      */
@@ -162,21 +162,19 @@ public class ChatNetworkManager {
         editor.putBoolean("visited_group_" + groupId, true);
         editor.apply();
         Log.d(TAG, "그룹 " + groupId + " 첫 접속 상태 기록 완료");
-    }
-    
-    /**
-     * 첫 접속 시에만 동기화 수행
+    }    /**
+     * 그룹 접속 시마다 동기화 수행 (첫 접속 여부와 관계없이)
      */
     public void performFirstTimeSync() {
+        Log.d(TAG, "그룹 접속 - 메시지 동기화 시작 (첫 접속: " + isFirstTimeAccess + ")");
+        performFullMessageSync();
+        
+        // 첫 접속인 경우만 상태 기록
         if (isFirstTimeAccess) {
-            Log.d(TAG, "첫 접속 감지 - 전체 메시지 동기화 시작");
-            performFullMessageSync();
             markGroupAsVisited(currentGroupId);
             isFirstTimeAccess = false;
-        } else {
-            Log.d(TAG, "이미 방문한 그룹 - 첫 접속 동기화 건너뜀");
         }
-    }    /**
+    }/**
      * 지능형 메시지 동기화 설정 (조건부)
      * - 첫 접속이 아닌 경우 정기 동기화 비활성화
      * - 적응형 동기화 간격
@@ -188,7 +186,7 @@ public class ChatNetworkManager {
             Log.d(TAG, "첫 접속이 아니므로 정기 동기화를 비활성화합니다");
             return;
         }
-        
+
         Log.d(TAG, "첫 접속 - 지능형 동기화 시스템 시작");
         syncHandler = new Handler(Looper.getMainLooper());
         syncRunnable = new Runnable() {
@@ -200,21 +198,21 @@ public class ChatNetworkManager {
                     stopPeriodicSync();
                     return;
                 }
-                
+
                 // 중복 동기화 방지
                 if (isSyncInProgress) {
                     Log.d(TAG, "동기화 진행 중이므로 건너뜀");
                     scheduleNextSync();
                     return;
                 }
-                
+
                 // 네트워크 연결 확인
                 if (!isNetworkConnected()) {
                     Log.d(TAG, "네트워크 미연결로 동기화 건너뜀");
                     scheduleNextSync();
                     return;
                 }
-                
+
                 // 최근 동기화 시간 확인 (너무 빈번한 동기화 방지)
                 long timeSinceLastSync = System.currentTimeMillis() - lastSyncTime;
                 if (timeSinceLastSync < MIN_SYNC_INTERVAL) {
@@ -222,17 +220,17 @@ public class ChatNetworkManager {
                     scheduleNextSync();
                     return;
                 }
-                
+
                 Log.d(TAG, "첫 접속 지능형 동기화 실행 - 간격: " + (currentSyncInterval/1000) + "초");
                 smartSyncMessagesFromServer();
             }
         };
-        
+
         // 첫 번째 동기화는 10초 후 시작 (즉시 시작 방지)
         syncHandler.postDelayed(syncRunnable, 10000);
         lastActivityTime = System.currentTimeMillis();
     }
-      /**
+    /**
      * 정기적인 메시지 동기화 중지
      */
     public void stopPeriodicSync() {
@@ -242,7 +240,7 @@ public class ChatNetworkManager {
         }
         isSyncInProgress = false;
     }
-    
+
     /**
      * 다음 동기화 일정 예약 (적응형 간격)
      */
@@ -251,7 +249,7 @@ public class ChatNetworkManager {
             syncHandler.postDelayed(syncRunnable, currentSyncInterval);
         }
     }
-    
+
     /**
      * 동기화 간격 조정 (적응형)
      */
@@ -270,13 +268,13 @@ public class ChatNetworkManager {
             }
         }
     }
-    
+
     /**
      * 활동 기반 동기화 트리거
      */
     public void notifyUserActivity() {
         lastActivityTime = System.currentTimeMillis();
-        
+
         // 사용자가 활동 중이고 마지막 동기화가 1분 이상 전이면 즉시 동기화
         long timeSinceLastSync = System.currentTimeMillis() - lastSyncTime;
         if (timeSinceLastSync > 60000 && !isSyncInProgress) {
@@ -295,10 +293,10 @@ public class ChatNetworkManager {
             Log.d(TAG, "동기화가 이미 진행 중입니다");
             return;
         }
-        
+
         isSyncInProgress = true;
         lastSyncTime = System.currentTimeMillis();
-        
+
         if (!isNetworkConnected()) {
             Log.d(TAG, "네트워크 연결 없음 - 동기화 취소");
             isSyncInProgress = false;
@@ -351,10 +349,10 @@ public class ChatNetworkManager {
                                 newMessages.add(message);
                             }
                         }
-                        
+
                         boolean hasNewMessages = !newMessages.isEmpty();
                         Log.d(TAG, "지능형 동기화 완료 - 새 메시지: " + newMessages.size() + "개");
-                        
+
                         // 적응형 간격 조정
                         adjustSyncInterval(hasNewMessages);
 
@@ -381,7 +379,7 @@ public class ChatNetworkManager {
             }
         });
     }
-    
+
     /**
      * 기존 동기화 메서드 (호환성 유지)
      * 지능형 동기화로 리다이렉트
@@ -390,7 +388,7 @@ public class ChatNetworkManager {
         Log.d(TAG, "기존 동기화 메서드 호출 -> 지능형 동기화로 전환");
         smartSyncMessagesFromServer();
     }
-    
+
     /**
      * 전체 메시지 동기화 (오프라인 복구용)
      */
@@ -399,11 +397,11 @@ public class ChatNetworkManager {
                 .connectTimeout(20, TimeUnit.SECONDS)
                 .readTimeout(45, TimeUnit.SECONDS)
                 .build();
-        
+
         String url = BASE_URL + "/chat/" + currentGroupId + "/history";
-        
+
         Log.d(TAG, "전체 메시지 동기화 요청: " + url);
-        
+
         Request request = new Request.Builder()
                 .url(url)
                 .get()
@@ -424,9 +422,9 @@ public class ChatNetworkManager {
                     try {
                         String responseData = response.body().string();
                         Log.d(TAG, "전체 메시지 동기화 응답 받음");
-                        
+
                         JSONArray messagesArray = null;
-                        
+
                         if (responseData.trim().startsWith("[")) {
                             messagesArray = new JSONArray(responseData);
                         } else {
@@ -442,10 +440,10 @@ public class ChatNetworkManager {
                                 messagesArray = jsonObject.getJSONArray("history");
                             }
                         }
-                        
+
                         if (messagesArray != null) {
                             List<Message> serverMessages = new ArrayList<>();
-                            
+
                             for (int i = 0; i < messagesArray.length(); i++) {
                                 JSONObject messageObject = messagesArray.getJSONObject(i);
                                 Message message = parseMessageFromJson(messageObject);
@@ -453,12 +451,12 @@ public class ChatNetworkManager {
                                     serverMessages.add(message);
                                 }
                             }
-                            
+
                             if (networkCallback != null) {
                                 networkCallback.onSyncCompleted(serverMessages);
                             }
                         }
-                        
+
                     } catch (JSONException e) {
                         Log.e(TAG, "전체 메시지 동기화 응답 파싱 오류", e);
                         if (networkCallback != null) {
@@ -474,7 +472,7 @@ public class ChatNetworkManager {
             }
         });
     }
-      /**
+    /**
      * 채팅 요약 요청 (AI 요약을 위한 긴 타임아웃 설정)
      */
     public void requestChatSummary() {
@@ -492,8 +490,8 @@ public class ChatNetworkManager {
             Log.e(TAG, "요약 요청 JSON 생성 오류", e);
             if (networkCallback != null) {
                 // UI 스레드에서 실행 보장
-                new Handler(Looper.getMainLooper()).post(() -> 
-                    networkCallback.onSummaryFailed("요청 생성 실패"));
+                new Handler(Looper.getMainLooper()).post(() ->
+                        networkCallback.onSummaryFailed("요청 생성 실패"));
             }
             return;
         }
@@ -509,46 +507,46 @@ public class ChatNetworkManager {
         Log.d(TAG, "채팅 요약 요청 시작 - 그룹 ID: " + currentGroupId);
 
         client.newCall(request).enqueue(new Callback() {
-            @Override 
+            @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "채팅 요약 요청 실패 (Ask Gemini)", e);
                 if (networkCallback != null) {
                     // UI 스레드에서 실행 보장
-                    new Handler(Looper.getMainLooper()).post(() -> 
-                        networkCallback.onSummaryFailed("네트워크 오류"));
+                    new Handler(Looper.getMainLooper()).post(() ->
+                            networkCallback.onSummaryFailed("네트워크 오류"));
                 }
             }
 
-            @Override 
+            @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 try {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseData = response.body().string();
                         Log.d(TAG, "채팅 요약 응답 받음");
-                        
+
                         try {
                             JSONObject jsonObject = new JSONObject(responseData);
                             final String summary = jsonObject.optString("summary", "요약을 생성할 수 없습니다.");
-                            
+
                             if (networkCallback != null) {
                                 // UI 스레드에서 실행 보장
-                                new Handler(Looper.getMainLooper()).post(() -> 
-                                    networkCallback.onSummaryReceived(summary));
+                                new Handler(Looper.getMainLooper()).post(() ->
+                                        networkCallback.onSummaryReceived(summary));
                             }
                         } catch (JSONException e) {
                             Log.e(TAG, "요약 응답 파싱 오류", e);
                             if (networkCallback != null) {
                                 // UI 스레드에서 실행 보장
-                                new Handler(Looper.getMainLooper()).post(() -> 
-                                    networkCallback.onSummaryFailed("응답 처리 오류"));
+                                new Handler(Looper.getMainLooper()).post(() ->
+                                        networkCallback.onSummaryFailed("응답 처리 오류"));
                             }
                         }
                     } else {
                         Log.e(TAG, "채팅 요약 서버 오류: " + response.code());
                         if (networkCallback != null) {
                             // UI 스레드에서 실행 보장
-                            new Handler(Looper.getMainLooper()).post(() -> 
-                                networkCallback.onSummaryFailed("서버 오류: " + response.code()));
+                            new Handler(Looper.getMainLooper()).post(() ->
+                                    networkCallback.onSummaryFailed("서버 오류: " + response.code()));
                         }
                     }
                 } finally {
@@ -559,7 +557,7 @@ public class ChatNetworkManager {
                 }
             }        });
     }
-    
+
     /**
      * 시간 추천 요청 (AI 기반 추천 시간 계산)
      */
@@ -579,61 +577,61 @@ public class ChatNetworkManager {
         Log.d(TAG, "시간 추천 요청 시작 - 그룹 ID: " + currentGroupId);
 
         client.newCall(request).enqueue(new Callback() {
-            @Override 
+            @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "시간 추천 요청 실패", e);
                 if (networkCallback != null) {
                     // UI 스레드에서 실행 보장
-                    new Handler(Looper.getMainLooper()).post(() -> 
-                        networkCallback.onTimeRecommendationFailed("네트워크 오류"));
+                    new Handler(Looper.getMainLooper()).post(() ->
+                            networkCallback.onTimeRecommendationFailed("네트워크 오류"));
                 }
             }
 
-            @Override 
+            @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {                try {
-                    if (response.isSuccessful() && response.body() != null) {
-                        String responseData = response.body().string();
-                        Log.d(TAG, "시간 추천 응답 받음: " + responseData);
-                        
-                        try {
-                            JSONObject jsonObject = new JSONObject(responseData);
-                            Log.d(TAG, "JSON 파싱 성공: " + jsonObject.toString());                            // API 응답에서 like_time 필드 추출
-                            String recommendation = jsonObject.optString("like_time", "추천 시간을 생성할 수 없습니다.");
-                            
-                            // 마크다운 형식을 일반 텍스트로 변환
-                            final String finalRecommendation = formatRecommendationText(recommendation);
-                            
-                            if (networkCallback != null) {
-                                // UI 스레드에서 실행 보장
-                                new Handler(Looper.getMainLooper()).post(() -> 
-                                    networkCallback.onTimeRecommendationReceived(finalRecommendation));
-                            }
-                        } catch (JSONException e) {
-                            Log.e(TAG, "시간 추천 응답 파싱 오류", e);
-                            if (networkCallback != null) {
-                                // UI 스레드에서 실행 보장
-                                new Handler(Looper.getMainLooper()).post(() -> 
-                                    networkCallback.onTimeRecommendationFailed("응답 처리 오류"));
-                            }
-                        }
-                    } else {
-                        Log.e(TAG, "시간 추천 서버 오류: " + response.code());
+                if (response.isSuccessful() && response.body() != null) {
+                    String responseData = response.body().string();
+                    Log.d(TAG, "시간 추천 응답 받음: " + responseData);
+
+                    try {
+                        JSONObject jsonObject = new JSONObject(responseData);
+                        Log.d(TAG, "JSON 파싱 성공: " + jsonObject.toString());                            // API 응답에서 like_time 필드 추출
+                        String recommendation = jsonObject.optString("like_time", "추천 시간을 생성할 수 없습니다.");
+
+                        // 마크다운 형식을 일반 텍스트로 변환
+                        final String finalRecommendation = formatRecommendationText(recommendation);
+
                         if (networkCallback != null) {
                             // UI 스레드에서 실행 보장
-                            new Handler(Looper.getMainLooper()).post(() -> 
-                                networkCallback.onTimeRecommendationFailed("서버 오류: " + response.code()));
+                            new Handler(Looper.getMainLooper()).post(() ->
+                                    networkCallback.onTimeRecommendationReceived(finalRecommendation));
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "시간 추천 응답 파싱 오류", e);
+                        if (networkCallback != null) {
+                            // UI 스레드에서 실행 보장
+                            new Handler(Looper.getMainLooper()).post(() ->
+                                    networkCallback.onTimeRecommendationFailed("응답 처리 오류"));
                         }
                     }
-                } finally {
-                    // 응답 바디 닫기
-                    if (response.body() != null) {
-                        response.body().close();
+                } else {
+                    Log.e(TAG, "시간 추천 서버 오류: " + response.code());
+                    if (networkCallback != null) {
+                        // UI 스레드에서 실행 보장
+                        new Handler(Looper.getMainLooper()).post(() ->
+                                networkCallback.onTimeRecommendationFailed("서버 오류: " + response.code()));
                     }
                 }
+            } finally {
+                // 응답 바디 닫기
+                if (response.body() != null) {
+                    response.body().close();
+                }
+            }
             }
         });
     }
-    
+
     /**
      * 그룹 멤버 로드
      */
@@ -661,18 +659,18 @@ public class ChatNetworkManager {
                     try {
                         String responseData = response.body().string();
                         Log.d(TAG, "그룹 멤버 응답: " + responseData);
-                        
+
                         JSONObject jsonObject = new JSONObject(responseData);
                         if (jsonObject.has("users")) {
                             JSONArray usersArray = jsonObject.getJSONArray("users");
                             List<Object> members = new ArrayList<>();
-                            
+
                             for (int i = 0; i < usersArray.length(); i++) {
                                 JSONObject userObject = usersArray.getJSONObject(i);
                                 // User 객체 대신 JSONObject를 그대로 전달
                                 members.add(userObject);
                             }
-                            
+
                             if (networkCallback != null) {
                                 networkCallback.onMembersLoaded(members);
                             }
@@ -692,7 +690,7 @@ public class ChatNetworkManager {
             }
         });
     }
-    
+
     /**
      * JSON에서 Message 객체로 파싱 (간소화된 버전)
      */
@@ -704,15 +702,15 @@ public class ChatNetworkManager {
             if (content.isEmpty()) {
                 content = messageObject.optString("message", "");
             }
-            
+
             String timestampStr = messageObject.optString("timestamp", "");
             long timestamp = parseTimestamp(timestampStr);
-            
+
             String fileUrl = messageObject.optString("file_url", "");
             String fileType = messageObject.optString("file_type", "");
-            
+
             Message message = new Message(senderId, senderName, content, timestamp);
-            
+
             if (!fileUrl.isEmpty()) {
                 message.setFileUrl(fileUrl);
                 message.setFileType(fileType.isEmpty() ? "file" : fileType);
@@ -720,14 +718,14 @@ public class ChatNetworkManager {
             } else {
                 message.setMessageType("text");
             }
-            
+
             return message;
         } catch (Exception e) {
             Log.e(TAG, "메시지 파싱 오류", e);
             return null;
         }
     }
-    
+
     /**
      * 타임스탬프 파싱
      */
@@ -735,7 +733,7 @@ public class ChatNetworkManager {
         if (timestampStr == null || timestampStr.isEmpty()) {
             return System.currentTimeMillis();
         }
-        
+
         try {
             if (timestampStr.matches("\\d+")) {
                 long timestamp = Long.parseLong(timestampStr);
@@ -747,17 +745,17 @@ public class ChatNetworkManager {
         } catch (NumberFormatException e) {
             Log.w(TAG, "타임스탬프 파싱 실패: " + timestampStr);
         }
-        
+
         return System.currentTimeMillis();
     }
-      /**
+    /**
      * 마크다운 형식의 추천 시간 텍스트를 읽기 쉬운 형식으로 변환
      */
     private String formatRecommendationText(String rawText) {
         if (rawText == null || rawText.trim().isEmpty()) {
             return "추천 시간을 생성할 수 없습니다.";
         }
-        
+
         return rawText
                 // 마크다운 굵은 글씨 제거 (**텍스트** -> 텍스트)
                 .replaceAll("\\*\\*([^*]+)\\*\\*", "$1")
@@ -786,4 +784,4 @@ public class ChatNetworkManager {
         }
         stopPeriodicSync();
     }
-} 
+}
