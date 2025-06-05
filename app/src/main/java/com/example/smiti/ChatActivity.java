@@ -332,18 +332,17 @@ public class ChatActivity extends AppCompatActivity implements
         // 사용자 활동 알림 (지능형 동기화)
         networkManager.notifyUserActivity();
         uiManager.showFileTypeSelectionDialog(this);
-    }    @Override
+    }    
+      @Override
     public void onSummaryButtonClick() {
-        // 사용자 활동 알림 (지능형 동기화)
-        networkManager.notifyUserActivity();
+        // AI 요약 생성 (동기화 없이 진행)
         uiManager.showToast("AI 요약 생성 중");
         networkManager.requestChatSummary();
     }
     
     @Override
     public void onTimeRecommendButtonClick() {
-        // 사용자 활동 알림 (지능형 동기화)
-        networkManager.notifyUserActivity();
+        // AI 시간 추천 (동기화 없이 진행)
         uiManager.showToast("AI 기반 추천 시간 계산 중");
         networkManager.requestTimeRecommendation();
     }
