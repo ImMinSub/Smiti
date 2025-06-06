@@ -176,6 +176,20 @@ public class SmbtiTestActivity extends AppCompatActivity {
         // 다음 버튼 활성화
         nextButton.setEnabled(true);
         nextButton.setAlpha(1.0f);
+
+        // 자동으로 다음 질문으로 이동 (약간의 딜레이 후)
+        new android.os.Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (currentQuestion < questions.size() - 1) { 
+                    currentQuestion++;
+                    displayQuestion(currentQuestion);
+                } else {
+                    // 모든 질문 완료, 결과 계산
+                    calculateResult();
+                }
+            }
+        }, 300); // 300ms 딜레이
     }
     
     private void selectOptionB() {
@@ -196,6 +210,20 @@ public class SmbtiTestActivity extends AppCompatActivity {
         // 다음 버튼 활성화
         nextButton.setEnabled(true);
         nextButton.setAlpha(1.0f);
+
+        // 자동으로 다음 질문으로 이동 (약간의 딜레이 후)
+        new android.os.Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (currentQuestion < questions.size() - 1) {
+                    currentQuestion++;
+                    displayQuestion(currentQuestion);
+                } else {
+                    // 모든 질문 완료, 결과 계산
+                    calculateResult();
+                }
+            }
+        }, 300); // 300ms 딜레이
     }
     
     private void initQuestions() {
