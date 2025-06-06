@@ -166,7 +166,7 @@
                     android:textColor="#757575"
                     android:layout_marginBottom="16dp"/>
 
-                <Button
+                <android.widget.Button
                     android:id="@+id/btn_create_group"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
