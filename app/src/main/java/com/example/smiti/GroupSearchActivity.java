@@ -294,11 +294,8 @@ public class GroupSearchActivity extends AppCompatActivity {
             searchSuggestionsLayout.setVisibility(View.VISIBLE);
             loadRecentSearches();
             tvEmptyMessage.setText("검색된 결과가 없습니다.");
-            if (!isAiModeEnabled) {
-                btnCreateGroup.setVisibility(View.VISIBLE);
-            } else {
-                btnCreateGroup.setVisibility(View.GONE);
-            }
+            // AI 검색 모드에서도 그룹 생성 버튼을 항상 표시
+            btnCreateGroup.setVisibility(View.VISIBLE);
         } else {
             emptyResultLayout.setVisibility(View.GONE);
         }
