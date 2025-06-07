@@ -85,7 +85,7 @@
                 android:id="@+id/iv_like"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
-                android:src="@android:drawable/btn_star" />
+                android:src="@drawable/btn_star" />
 
             <TextView
                 android:id="@+id/tv_like_count"
@@ -101,7 +101,7 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:layout_marginStart="12dp"
-                android:src="@android:drawable/sym_action_chat" />
+                android:src="@drawable/sym_action_chat" />
 
             <TextView
                 android:id="@+id/tv_comment_count"
@@ -117,7 +117,7 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:layout_marginStart="12dp"
-                android:src="@android:drawable/ic_menu_view" />
+                android:src="@drawable/ic_menu_view" />
 
             <TextView
                 android:id="@+id/tv_view_count"
@@ -156,4 +156,4 @@
             tools:visibility="visible" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-</androidx.cardview.widget.CardView> 
+</androidx.cardview.widget.CardView>
