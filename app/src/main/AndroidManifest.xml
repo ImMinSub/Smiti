@@ -91,6 +91,13 @@
             android:theme="@style/Theme.Smiti.TransparentStatusBar"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- GroupLoadingActivity 선언 추가 -->
+        <activity
+            android:name=".GroupLoadingActivity"
+            android:exported="false"
+            android:label="로딩"
+            android:theme="@style/Theme.Smiti.NoActionBar" />
+
         <!-- GroupDetailActivity 선언 추가 -->
         <activity
             android:name=".GroupDetailActivity"
