@@ -4,4 +4,10 @@
         <item>일반 검색</item>
         <item>AI 검색</item>
     </string-array>
+    <string-array name="category_list">
+        <item>공지사항</item>
+        <item>자유게시판</item>
+        <item>질문게시판</item>
+        <item>자료실</item>
+    </string-array>
 </resources>
