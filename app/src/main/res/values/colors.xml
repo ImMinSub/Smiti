@@ -7,7 +7,7 @@
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
     <color name="admin_indicator_color">#D32F2F</color>
-    
+
     <!-- SMBTI 테스트 카드 색상 -->
     <color name="option_a_default">#B3D4F1</color>
     <color name="option_a_selected">#57ABF9</color>
@@ -19,8 +19,9 @@
     <color name="dark_blue">#1A237E</color>   <!-- 진한 파란색 버튼 -->
 
     <color name="gray_700">#616161</color>
-    
+
     <!-- SMBTI 태그 관련 색상 -->
     <color name="purple">#8B5CF6</color>
     <color name="purple_light">#F3F4F6</color>
+    <color name="insta_chip_bg">#F0F0F0</color>
 </resources>
