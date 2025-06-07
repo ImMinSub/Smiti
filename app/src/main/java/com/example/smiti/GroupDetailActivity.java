@@ -53,6 +53,11 @@ public class GroupDetailActivity extends AppCompatActivity {
     private boolean isAiMode;
     private String groupNameFromIntent; // Intent에서 받은 그룹 이름을 저장할 변수 추가
     private String currentUserEmail; // 현재 사용자 이메일 저장 변수 추가
+    
+    // 데이터 로딩 상태 관리
+    private boolean isGroupDetailsLoaded = false;
+    private boolean isMembershipChecked = false;
+    private boolean isMemberOfGroup = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,12 +146,11 @@ public class GroupDetailActivity extends AppCompatActivity {
                  return;
             }
 
-            // Intent extra에 이름 정보가 있으면 먼저 UI를 업데이트
-            // Group 객체 또는 개별 필드에서 정보 가져오기
-            populateGroupDetails(groupName, groupDescription, maxMembers, currentMembers, isAiMode);
-
-            // API 호출하여 그룹 상세 정보 가져오기 (ID 기반)
-            fetchGroupDetails(groupId, isAiMode, currentUserEmail); // 이메일 전달
+            // 로딩 화면 표시 (모든 UI 컴포넌트 숨김)
+            showLoadingState();
+            
+            // 두 API를 동시에 호출하여 모든 데이터 로드 후 완성된 화면 표시
+            fetchGroupDetailsAndMembership(groupId, isAiMode, currentUserEmail);
 
         } else {
             Toast.makeText(this, "잘못된 접근입니다. 그룹 정보가 없습니다.", Toast.LENGTH_SHORT).show();
@@ -203,6 +207,7 @@ public class GroupDetailActivity extends AppCompatActivity {
                                 runOnUiThread(() -> {
                                     btnJoinGroupDetail.setVisibility(View.GONE);
                                     btnLeaveGroupDetail.setVisibility(View.VISIBLE);
+                                    isMemberOfGroup = true; // 상태 업데이트
                                 });
                             } else {
                                 // 가입 실패 처리 (HTTP 오류 코드 확인)
@@ -237,165 +242,6 @@ public class GroupDetailActivity extends AppCompatActivity {
                 } else {
                     Toast.makeText(GroupDetailActivity.this, "그룹 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
                 }
-            }
-        });
-    }
-
-    private void populateGroupDetails(String groupName, String groupDescription, int maxMembers, int currentMembers, boolean isAiMode) {
-        // currentGroup 객체 대신 전달받은 인자 사용
-
-        if (collapsingToolbarLayout != null) {
-            collapsingToolbarLayout.setTitle(groupName);
-        }
-
-        tvGroupNameDetail.setText(groupName);
-
-        // 그룹 프로필 아이콘 설정 (실제 그룹 프로필 이미지가 있다면 Glide 등으로 로드)
-        // 여기서는 기본 플레이스홀더 이미지 설정 예시
-        if (ivGroupProfileIcon != null) {
-            ivGroupProfileIcon.setImageResource(R.drawable.ic_profile_placeholder); // 기본 이미지 리소스 필요
-        }
-
-        // 그룹 설명 설정
-        if (groupDescription != null && !groupDescription.isEmpty()) {
-            tvGroupDescriptionDetail.setText(groupDescription);
-            tvGroupDescriptionDetail.setVisibility(View.VISIBLE);
-        } else {
-            tvGroupDescriptionDetail.setText("등록된 그룹 설명이 없습니다.");
-            tvGroupDescriptionDetail.setVisibility(View.GONE);
-        }
-
-        // 그룹 점수 설정 (이 부분은 populateGroupDetails 메서드에서 처리하기보다,
-        // SMBTI 점수가 API 응답에 포함될 때 설정하는 것이 더 정확합니다.
-        // 현재는 API 응답에서 SMBTI 점수를 받아오므로 해당 로직은 유지합니다.
-        // isAiMode 값만 전달받아 점수 표시 방식을 결정합니다.)
-
-        // 멤버 정보 설정
-        if (tvMemberInfoDetail != null) {
-            if (maxMembers > 0) {
-                tvMemberInfoDetail.setText("참여 인원: " + currentMembers + " / " + maxMembers + "명");
-                tvMemberInfoDetail.setVisibility(View.VISIBLE);
-            } else if (currentMembers > 0) {
-                tvMemberInfoDetail.setText("현재 인원: " + currentMembers + "명");
-                tvMemberInfoDetail.setVisibility(View.VISIBLE);
-            } else { // 정보가 없으면 숨김
-                tvMemberInfoDetail.setVisibility(View.GONE);
-            }
-        }
-    }
-
-    // 그룹 상세 정보를 ID로 가져오는 새로운 메서드
-    private void fetchGroupDetails(String groupId, boolean isAiMode, String userEmail) { // userEmail 매개변수 추가
-        ApiService apiService = RetrofitClient.getApiService();
-        // API 서비스의 getGroupDetail 메서드는 groupId를 int로 받으므로 변환 필요
-        int id;
-        try {
-            id = Integer.parseInt(groupId);
-        } catch (NumberFormatException e) {
-            Log.e("GroupDetailActivity", "그룹 ID 형변환 오류: " + groupId, e);
-            Toast.makeText(this, "잘못된 그룹 정보입니다.", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-
-        apiService.getGroupDetail(id, userEmail).enqueue(new Callback<Group>() { // userEmail 전달
-            @Override
-            public void onResponse(Call<Group> call, Response<Group> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    currentGroup = response.body();
-                    populateGroupDetails(currentGroup.getName(), currentGroup.getDescription(), currentGroup.getMax_members(), currentGroup.getCurrent_members(), isAiMode);
-                    // API 호출 성공 후 그룹 참가/탈퇴 버튼 상태 설정
-                    checkUserMembershipAndSetupButton(currentGroup.getId(), currentUserEmail); // 멤버십 확인 및 버튼 설정 호출
-                    
-                    // SMBTI 점수 업데이트
-                    if (tvGroupScoreDetail != null) {
-                        int roundedScore = (int) Math.round(currentGroup.getMbtiScore()); // getMbtiScore() 사용
-                        // TODO: isAiMode 값에 따라 텍스트 변경 (AI 추천 또는 궁합)
-                        // 현재 isAiMode는 fetchGroupDetails 인자로 받아오지만, Group 객체에 해당 정보가 없어 임시로 텍스트 고정
-                        // 서버 응답에 isAiMode 같은 정보가 있다면 Group 모델에 필드를 추가하고 사용해야 함.
-                        if (isAiMode) {
-                            tvGroupScoreDetail.setText("AI 추천: " + roundedScore + "점");
-                        } else {
-                            tvGroupScoreDetail.setText("궁합: " + roundedScore + "점");
-                        }
-                        
-                        // 점수 값이 0보다 크거나 같으면 보이도록 설정 (0점도 표시)
-                        if (roundedScore >= 0) {
-                            tvGroupScoreDetail.setVisibility(View.VISIBLE);
-                        } else {
-                            tvGroupScoreDetail.setVisibility(View.GONE); // 점수가 유효하지 않으면 숨김
-                        }
-                    }
-                } else {
-                    Log.e("GroupDetailActivity", "그룹 상세 정보 로드 실패: " + response.code());
-                    Toast.makeText(GroupDetailActivity.this, "그룹 정보를 불러오는데 실패했습니다. 오류 코드: " + response.code(), Toast.LENGTH_SHORT).show();
-                    // 오류 발생 시 버튼 숨김
-                    btnJoinGroupDetail.setVisibility(View.GONE);
-                    btnLeaveGroupDetail.setVisibility(View.GONE);
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Group> call, Throwable t) {
-                Log.e("GroupDetailActivity", "그룹 상세 정보 API 호출 실패", t);
-                Toast.makeText(GroupDetailActivity.this, "그룹 정보를 불러오는데 네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
-                // 네트워크 오류 발생 시 버튼 숨김
-                btnJoinGroupDetail.setVisibility(View.GONE);
-                btnLeaveGroupDetail.setVisibility(View.GONE);
-            }
-        });
-    }
-
-    // 사용자 그룹 멤버십 확인 및 버튼 설정 메소드
-    private void checkUserMembershipAndSetupButton(String groupId, String userEmail) {
-        ApiService apiService = RetrofitClient.getApiService();
-        apiService.getMyGroups(userEmail).enqueue(new Callback<List<Group>>() {
-            @Override
-            public void onResponse(Call<List<Group>> call, Response<List<Group>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    List<Group> userGroups = response.body();
-                    boolean isMember = false;
-                    for (Group group : userGroups) {
-                        if (group.getId().equals(groupId)) {
-                            isMember = true;
-                            break;
-                        }
-                    }
-                    // Final copy of isMember for the lambda
-                    final boolean finalIsMember = isMember;
-                    
-                    // UI 업데이트는 메인 스레드에서
-                    runOnUiThread(() -> {
-                        if (finalIsMember) {
-                            btnJoinGroupDetail.setVisibility(View.GONE);
-                            btnLeaveGroupDetail.setVisibility(View.VISIBLE);
-                        } else {
-                            btnJoinGroupDetail.setVisibility(View.VISIBLE);
-                            btnLeaveGroupDetail.setVisibility(View.GONE);
-                            // 비회원일 경우 가입 버튼 활성화
-                            btnJoinGroupDetail.setEnabled(true);
-                        }
-                    });
-                } else {
-                    Log.e("GroupDetailActivity", "사용자 그룹 목록 조회 실패: " + response.code());
-                    // 실패 시 버튼 모두 숨김 또는 기본 상태 (참가 버튼만 보이게) 처리
-                    runOnUiThread(() -> {
-                        btnJoinGroupDetail.setVisibility(View.VISIBLE);
-                        btnLeaveGroupDetail.setVisibility(View.GONE);
-                        btnJoinGroupDetail.setEnabled(true); // 기본적으로 참가 버튼 활성화
-                    });
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<Group>> call, Throwable t) {
-                Log.e("GroupDetailActivity", "사용자 그룹 목록 API 호출 실패", t);
-                // 네트워크 오류 시 버튼 모두 숨김 또는 기본 상태 (참가 버튼만 보이게) 처리
-                runOnUiThread(() -> {
-                    btnJoinGroupDetail.setVisibility(View.VISIBLE);
-                    btnLeaveGroupDetail.setVisibility(View.GONE);
-                    btnJoinGroupDetail.setEnabled(true); // 기본적으로 참가 버튼 활성화
-                });
             }
         });
     }
@@ -484,5 +330,202 @@ public class GroupDetailActivity extends AppCompatActivity {
 
     private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    // 로딩 상태 표시 (모든 UI 요소 숨김, 시스템 기본 로딩만 표시)
+    private void showLoadingState() {
+        // 모든 주요 UI 컴포넌트 숨김
+        tvGroupNameDetail.setVisibility(View.GONE);
+        tvGroupDescriptionDetail.setVisibility(View.GONE);
+        tvMemberInfoDetail.setVisibility(View.GONE);
+        if (tvGroupScoreDetail != null) {
+            tvGroupScoreDetail.setVisibility(View.GONE);
+        }
+        btnJoinGroupDetail.setVisibility(View.GONE);
+        btnLeaveGroupDetail.setVisibility(View.GONE);
+        ivGroupProfileIcon.setVisibility(View.GONE);
+        
+        // 시스템의 기본 로딩 애니메이션이 자동으로 표시됨
+        // (안드로이드에서 네트워크 작업 중 자동으로 표시되는 로딩 스피너)
+    }
+
+    // 완성된 그룹 정보를 표시하는 메서드 (모든 데이터가 준비된 후 호출)
+    private void populateCompleteGroupInfo(String groupName, String groupDescription, int maxMembers, int currentMembers) {
+        if (collapsingToolbarLayout != null) {
+            collapsingToolbarLayout.setTitle(groupName);
+        }
+
+        tvGroupNameDetail.setText(groupName);
+
+        // 그룹 프로필 아이콘 설정
+        if (ivGroupProfileIcon != null) {
+            ivGroupProfileIcon.setImageResource(R.drawable.ic_profile_placeholder);
+        }
+
+        // 그룹 설명 설정
+        if (groupDescription != null && !groupDescription.isEmpty()) {
+            tvGroupDescriptionDetail.setText(groupDescription);
+        } else {
+            tvGroupDescriptionDetail.setText("등록된 그룹 설명이 없습니다.");
+        }
+
+        // 멤버 정보 설정
+        if (tvMemberInfoDetail != null) {
+            if (maxMembers > 0) {
+                tvMemberInfoDetail.setText("참여 인원: " + currentMembers + " / " + maxMembers + "명");
+            } else if (currentMembers > 0) {
+                tvMemberInfoDetail.setText("현재 인원: " + currentMembers + "명");
+            } else {
+                tvMemberInfoDetail.setText("인원 정보 없음");
+            }
+        }
+    }
+
+    // 두 API를 동시에 호출하는 메서드
+    private void fetchGroupDetailsAndMembership(String groupId, boolean isAiMode, String userEmail) {
+        // 두 API를 동시에 호출
+        fetchGroupDetailsOnly(groupId, isAiMode);
+        checkUserMembershipOnly(groupId, userEmail);
+    }
+
+    // 그룹 상세 정보만 로드하는 메서드
+    private void fetchGroupDetailsOnly(String groupId, boolean isAiMode) {
+        ApiService apiService = RetrofitClient.getApiService();
+        int id;
+        try {
+            id = Integer.parseInt(groupId);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "그룹 ID 형변환 오류: " + groupId, e);
+            showErrorState("잘못된 그룹 정보입니다.");
+            return;
+        }
+
+        apiService.getGroupDetail(id, currentUserEmail).enqueue(new Callback<Group>() {
+            @Override
+            public void onResponse(Call<Group> call, Response<Group> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    currentGroup = response.body();
+                    isGroupDetailsLoaded = true;
+                    
+                    // 모든 데이터가 로드되었는지 확인
+                    if (isMembershipChecked) {
+                        updateUIWithAllData();
+                    }
+                } else {
+                    Log.e(TAG, "그룹 상세 정보 로드 실패: " + response.code());
+                    showErrorState("그룹 정보를 불러오는데 실패했습니다.");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Group> call, Throwable t) {
+                Log.e(TAG, "그룹 상세 정보 API 호출 실패", t);
+                showErrorState("네트워크 오류가 발생했습니다.");
+            }
+        });
+    }
+
+    // 멤버십만 확인하는 메서드
+    private void checkUserMembershipOnly(String groupId, String userEmail) {
+        ApiService apiService = RetrofitClient.getApiService();
+        apiService.getMyGroups(userEmail).enqueue(new Callback<List<Group>>() {
+            @Override
+            public void onResponse(Call<List<Group>> call, Response<List<Group>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Group> userGroups = response.body();
+                    isMemberOfGroup = false;
+                    for (Group group : userGroups) {
+                        if (group.getId().equals(groupId)) {
+                            isMemberOfGroup = true;
+                            break;
+                        }
+                    }
+                    isMembershipChecked = true;
+                    
+                    // 모든 데이터가 로드되었는지 확인
+                    if (isGroupDetailsLoaded) {
+                        updateUIWithAllData();
+                    }
+                } else {
+                    Log.e(TAG, "사용자 그룹 목록 조회 실패: " + response.code());
+                    isMembershipChecked = true;
+                    isMemberOfGroup = false; // 실패 시 기본값으로 비회원 처리
+                    
+                    if (isGroupDetailsLoaded) {
+                        updateUIWithAllData();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<Group>> call, Throwable t) {
+                Log.e(TAG, "사용자 그룹 목록 API 호출 실패", t);
+                isMembershipChecked = true;
+                isMemberOfGroup = false; // 실패 시 기본값으로 비회원 처리
+                
+                if (isGroupDetailsLoaded) {
+                    updateUIWithAllData();
+                }
+            }
+        });
+    }
+
+    // 모든 데이터 로드 후 완성된 화면을 한 번에 표시하는 메서드
+    private void updateUIWithAllData() {
+        runOnUiThread(() -> {
+            if (currentGroup != null) {
+                // 1. 모든 UI 컴포넌트를 보이도록 설정
+                tvGroupNameDetail.setVisibility(View.VISIBLE);
+                tvGroupDescriptionDetail.setVisibility(View.VISIBLE);
+                tvMemberInfoDetail.setVisibility(View.VISIBLE);
+                ivGroupProfileIcon.setVisibility(View.VISIBLE);
+                
+                // 2. 완성된 그룹 정보 표시 (API에서 받은 최신 정보로)
+                populateCompleteGroupInfo(
+                    currentGroup.getName(),
+                    currentGroup.getDescription(),
+                    currentGroup.getMax_members(),
+                    currentGroup.getCurrent_members()
+                );
+                
+                // 3. 궁합 점수 표시
+                if (tvGroupScoreDetail != null) {
+                    int roundedScore = (int) Math.round(currentGroup.getMbtiScore());
+                    if (isAiMode) {
+                        tvGroupScoreDetail.setText("AI 추천: " + roundedScore + "점");
+                    } else {
+                        tvGroupScoreDetail.setText("궁합: " + roundedScore + "점");
+                    }
+                    
+                    if (roundedScore >= 0) {
+                        tvGroupScoreDetail.setVisibility(View.VISIBLE);
+                    } else {
+                        tvGroupScoreDetail.setVisibility(View.GONE);
+                    }
+                }
+
+                // 4. 올바른 버튼 상태 설정
+                if (isMemberOfGroup) {
+                    btnJoinGroupDetail.setVisibility(View.GONE);
+                    btnLeaveGroupDetail.setVisibility(View.VISIBLE);
+                } else {
+                    btnJoinGroupDetail.setVisibility(View.VISIBLE);
+                    btnLeaveGroupDetail.setVisibility(View.GONE);
+                    btnJoinGroupDetail.setEnabled(true);
+                }
+                
+                // 5. 완성된 화면이 표시됨 - 사용자는 모든 정보를 한 번에 볼 수 있음
+            }
+        });
+    }
+
+    // 오류 상태 표시 메서드
+    private void showErrorState(String errorMessage) {
+        runOnUiThread(() -> {
+            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+            
+            // 오류 발생 시 화면을 닫고 이전 화면으로 돌아감
+            finish();
+        });
     }
 }
