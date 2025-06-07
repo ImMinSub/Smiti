@@ -5,14 +5,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="#FAFAFA"
     tools:context=".BoardActivity">
 
+    <!-- 상단 툴바: 인스타그램 느낌 흰색, 얇은 그림자 -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@android:color/white"
+        android:elevation="1dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -21,7 +23,6 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <!-- 커뮤니티 타이틀과 관리자 표시를 담을 LinearLayout 추가 -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -34,22 +35,20 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="커뮤니티"
-                    android:textColor="@android:color/black"
+                    android:textColor="#262626"
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
-                <!-- 관리자 표시 TextView 추가 -->
                 <TextView
                     android:id="@+id/admin_indicator_text"
                     android:layout_width="wrap_content"
                     android:layout_height="24dp"
                     android:layout_marginStart="4dp"
                     android:text=" (관리자)"
-                    android:textColor="@color/admin_indicator_color"
+                    android:textColor="#0095F6"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:visibility="visible" />
-
             </LinearLayout>
 
             <LinearLayout
@@ -65,7 +64,7 @@
                     android:layout_height="48dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="검색"
-                    android:src="@android:drawable/ic_menu_search" />
+                    android:src="@drawable/ic_menu_search" />
 
                 <ImageButton
                     android:id="@+id/btn_notification"
@@ -74,13 +73,12 @@
                     android:layout_marginEnd="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="알림"
-                    android:src="@android:drawable/ic_popup_reminder" />
+                    android:src="@drawable/ic_popup_reminder" />
             </LinearLayout>
         </RelativeLayout>
-
     </androidx.appcompat.widget.Toolbar>
 
-    <!-- 검색 레이아웃 추가 -->
+    <!-- 검색 레이아웃: 인스타그램 스타일 흰색, 라운드, 그림자 없음 -->
     <LinearLayout
         android:id="@+id/search_layout"
         android:layout_width="match_parent"
@@ -96,7 +94,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:background="@android:color/white"
+            android:background="@drawable/bg_edittext_rounded"
             android:hint="검색어를 입력하세요"
             android:inputType="text"
             android:paddingStart="12dp"
@@ -111,10 +109,9 @@
             android:contentDescription="검색어 지우기"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:visibility="gone" />
-
-
     </LinearLayout>
 
+    <!-- 카테고리: 인스타그램 스토리 하이라이트 느낌의 칩 -->
     <HorizontalScrollView
         android:id="@+id/categories_scroll"
         android:layout_width="match_parent"
@@ -139,32 +136,40 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="전체" />
+                android:text="전체"
+                android:textColor="#262626"
+                app:chipBackgroundColor="@color/insta_chip_bg" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip_notice"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="공지사항" />
+                android:text="공지사항"
+                android:textColor="#262626"
+                app:chipBackgroundColor="@color/insta_chip_bg" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip_free"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="자유게시판" />
+                android:text="자유게시판"
+                android:textColor="#262626"
+                app:chipBackgroundColor="@color/insta_chip_bg" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip_info"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="정보게시판" />
+                android:text="정보게시판"
+                android:textColor="#262626"
+                app:chipBackgroundColor="@color/insta_chip_bg" />
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
-    <!-- SwipeRefreshLayout 추가 -->
+    <!-- 게시글 목록: RecyclerView, 여백과 배경만 인스타 스타일 -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh"
         android:layout_width="0dp"
@@ -184,9 +189,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:padding="8dp" />
+                android:padding="8dp"
+                android:background="#FAFAFA" />
 
-            <!-- 빈 상태 표시 -->
             <TextView
                 android:id="@+id/tv_empty_state"
                 android:layout_width="match_parent"
@@ -197,9 +202,10 @@
                 android:padding="16dp"
                 android:text="게시글이 없습니다.\n첫 번째 게시글을 작성해보세요!"
                 android:textSize="16sp"
+                android:textColor="#8E8E8E"
+                android:background="@android:color/white"
                 android:visibility="gone" />
         </FrameLayout>
-
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -212,18 +218,20 @@
         app:layout_constraintStart_toStartOf="parent"
         app:menu="@menu/bottom_navigation_menu" />
 
+    <!-- 플로팅 버튼: 인스타그램 파랑 계열, 그림자 있음 -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_post"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_edit"
+        android:src="@drawable/ic_edit_white"
         android:contentDescription="글쓰기"
-        app:backgroundTint="#5D6DBE"
+        app:backgroundTint="#39546A"
+        app:tint="@android:color/white"
         app:layout_constraintBottom_toTopOf="@+id/bottom_navigation"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 로딩 표시 -->
+
     <ProgressBar
         android:id="@+id/progress_bar"
         style="?android:attr/progressBarStyle"
