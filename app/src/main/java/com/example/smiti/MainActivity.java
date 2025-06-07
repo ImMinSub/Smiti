@@ -146,7 +146,11 @@ public class MainActivity extends AppCompatActivity implements TodoAdapter.OnTod
             Intent intent = new Intent(MainActivity.this, SmbtiIntroActivity.class);
             startActivity(intent);
         });
-        adminBtn.setOnClickListener(v -> Toast.makeText(MainActivity.this, "관리 기능 실행", Toast.LENGTH_SHORT).show());
+        adminBtn.setOnClickListener(v -> {
+            // 나의 그룹 관리 - 프로필 화면으로 이동
+            Intent intent = new Intent(MainActivity.this, ProfileActivity.class);
+            startActivity(intent);
+        });
         chatTalkBtn.setOnClickListener(v -> {
             // 챗봇 화면으로 이동
             Intent intent = new Intent(MainActivity.this, ChatbotActivity.class);
