@@ -34,7 +34,7 @@
         android:id="@+id/button_edit_todo"
         android:layout_width="30dp"
         android:layout_height="30dp"
-        android:src="@android:drawable/ic_menu_edit"
+        android:src="@drawable/ic_menu_edit"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="할 일 수정"/>
 
@@ -42,7 +42,7 @@
         android:id="@+id/button_delete_todo"
         android:layout_width="30dp"
         android:layout_height="30dp"
-        android:src="@android:drawable/ic_menu_delete"
+        android:src="@drawable/ic_menu_delete"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="할 일 삭제"/>
 </LinearLayout> 
