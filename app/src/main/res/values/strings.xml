@@ -16,7 +16,7 @@
     <string name="join_button">Join</string>
     <string name="mbti_spinner_prompt">SMBTI 유형 선택</string>
     <string name="phone_number_label">전화번호</string>
-    
+
     <string-array name="mbti_types">
         <item>선택 안함 (나중에 검사)</item>
         <item>TCPD</item>
@@ -47,4 +47,5 @@
     <string name="ai_creating">AI가 새로운 그룹을 생성 중입니다.</string>
     <string name="join_group">참여하기</string>
     <string name="search_group_hint">그룹 검색...</string>
+    <string name="select_category_prompt">게시판을 선택하세요</string>
 </resources>
