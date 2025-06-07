@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- 진한 네이비 컬러, 사진 참고 -->
+    <solid android:color="#44506E" />
+    <!-- 부드러운 라운드, 버튼 높이의 40~50% 정도 -->
+    <corners android:radius="20dp" />
+    <!-- 내부 여백(선택, 필요시) -->
+    <padding
+        android:left="12dp"
+        android:top="8dp"
+        android:right="12dp"
+        android:bottom="8dp"/>
+</shape>

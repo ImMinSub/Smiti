@@ -1,0 +1,5 @@
+<!-- app/src/main/res/drawable/bg_file_button_rounded.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#446180" />
+    <corners android:radius="8dp" />
+</shape>

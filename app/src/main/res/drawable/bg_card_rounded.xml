@@ -1,0 +1,6 @@
+<!-- res/drawable/bg_card_rounded.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#FFFFFF"/>
+    <corners android:radius="16dp"/>
+    <!-- 그림자 효과는 카드뷰나 elevation 속성 사용 -->
+</shape>
